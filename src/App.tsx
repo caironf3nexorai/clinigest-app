@@ -1,3 +1,4 @@
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard, Custos, Pacientes, Login, Register, Configuracoes, SubscriptionExpired } from './pages';
