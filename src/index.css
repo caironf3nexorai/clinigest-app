@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Colors - Keeping variables for utility usage if needed, but Tailwind config takes precedence */
+  --primary: #0d9488;
+  --primary-hover: #0f766e;
+  --primary-light: #ccfbf1;
+
+  --secondary: #64748b;
+
+  --background: #f1f5f9;
+  --surface: #ffffff;
+
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+
+  --danger: #ef4444;
+  --success: #10b981;
+
+  --radius: 12px;
+  --header-height: 64px;
+}
+
+body {
+  @apply bg-background text-slate-900 antialiased;
+}
+
+/* Custom Component Classes using Tailwind */
+.btn {
+  @apply inline-flex items-center justify-center px-4 py-2 rounded-xl font-medium transition-all gap-2 border border-transparent;
+}
+
+.btn-primary {
+  @apply bg-primary text-white hover:bg-primary-hover shadow-sm hover:shadow-md;
+}
+
+.card {
+  @apply bg-surface rounded-xl border border-slate-200 shadow-sm p-6;
+}
