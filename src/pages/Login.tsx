@@ -31,7 +31,7 @@ export const Login = () => {
         <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4">
             <div className="max-w-md w-full bg-[var(--surface)] p-8 rounded-xl shadow-lg border border-[var(--border)]">
                 <div className="text-center mb-8">
-                    <h1 className="text-2xl font-bold text-[var(--primary)]">CliniGest</h1>
+                    <h1 className="text-2xl font-bold text-[var(--primary)]">Clinic+</h1>
                     <p className="text-[var(--text-muted)] mt-2">Bem-vindo de volta! Faça login para continuar.</p>
                 </div>
 

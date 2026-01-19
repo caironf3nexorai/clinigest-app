@@ -122,7 +122,7 @@ export const PatientPrintView = forwardRef<HTMLDivElement, PatientPrintViewProps
 
             {/* Footer */}
             <div className="mt-16 pt-8 border-t border-slate-300 text-center text-xs text-slate-400 print:fixed print:bottom-4 print:left-0 print:w-full print:mt-0">
-                <p>Documento gerado eletronicamente pelo sistema CliniGest.</p>
+                <p>Documento gerado eletronicamente pelo sistema Clinic+.</p>
             </div>
         </div>
     );

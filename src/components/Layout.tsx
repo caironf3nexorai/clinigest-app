@@ -49,8 +49,8 @@ export const Layout = () => {
                             {user?.user_metadata?.company_name?.[0]?.toUpperCase() || 'C'}
                         </div>
                     )}
-                    <span className="text-lg font-bold tracking-tight text-[var(--text-main)] truncate" title={user?.user_metadata?.company_name || 'CliniGest'}>
-                        {user?.user_metadata?.company_name || 'CliniGest'}
+                    <span className="text-lg font-bold tracking-tight text-[var(--text-main)] truncate" title={user?.user_metadata?.company_name || 'Clinic+'}>
+                        {user?.user_metadata?.company_name || 'Clinic+'}
                     </span>
                 </div>
 
@@ -87,7 +87,7 @@ export const Layout = () => {
 
             {/* Mobile Header (Visible only on small screens) */}
             <header className="md:hidden fixed top-0 w-full bg-[var(--surface)] border-b border-[var(--border)] h-[var(--header-height)] flex items-center justify-between px-4 z-10 print:hidden">
-                <span className="font-bold text-lg">CliniGest</span>
+                <span className="font-bold text-lg">Clinic+</span>
                 <button onClick={signOut} className="text-[var(--text-muted)]">
                     <LogOut size={20} />
                 </button>
