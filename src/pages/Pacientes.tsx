@@ -513,7 +513,7 @@ export const Pacientes = () => {
                                                     {format(parseISO(consulta.data_consulta), 'dd/MM/yyyy')}
                                                 </time>
                                                 <div className="flex items-center gap-2">
-                                                    {consulta.valor_consulta > 0 && (
+                                                    {consulta.valor_consulta && consulta.valor_consulta > 0 && (
                                                         <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
                                                             <DollarSign size={10} />
                                                             R$ {consulta.valor_consulta}
