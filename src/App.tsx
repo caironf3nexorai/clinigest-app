@@ -4,7 +4,7 @@ import { Dashboard, Custos, Pacientes, Login, Register, Configuracoes, Subscript
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Components to protect routes
-const RequireAuth = ({ children, ignoreSubscription = false }: { children: JSX.Element, ignoreSubscription?: boolean }) => {
+const RequireAuth = ({ children, ignoreSubscription = false }: { children: React.ReactNode, ignoreSubscription?: boolean }) => {
   const { session, loading, isSubscriptionValid } = useAuth();
   const location = useLocation();
 
@@ -24,7 +24,7 @@ const RequireAuth = ({ children, ignoreSubscription = false }: { children: JSX.E
 };
 
 // Redirect to dashboard if already logged in
-const RedirectIfAuthenticated = ({ children }: { children: JSX.Element }) => {
+const RedirectIfAuthenticated = ({ children }: { children: React.ReactNode }) => {
   const { session, loading } = useAuth();
   if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
   if (session) {
