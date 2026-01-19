@@ -1,30 +1,33 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>luminescent-sojourner</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script>
-      window.onerror = function(message, source, lineno, colno, error) {
-        var div = document.createElement('div');
-        div.style.color = 'red';
-        div.style.padding = '20px';
-        div.style.fontFamily = 'monospace';
-        div.style.backgroundColor = '#ffeeee';
-        div.style.zIndex = '9999';
-        div.style.position = 'fixed';
-        div.style.top = '0';
-        div.style.left = '0';
-        div.style.width = '100%';
-        div.innerHTML = '<h1>Critical Error</h1><p>' + message + '</p><p>' + source + ':' + lineno + '</p>';
-        document.body.appendChild(div);
-      };
-      console.log("App starting...");
-    </script>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CliniGest</title>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script>
+    window.onerror = function (message, source, lineno, colno, error) {
+      var div = document.createElement('div');
+      div.style.color = 'red';
+      div.style.padding = '20px';
+      div.style.fontFamily = 'monospace';
+      div.style.backgroundColor = '#ffeeee';
+      div.style.zIndex = '9999';
+      div.style.position = 'fixed';
+      div.style.top = '0';
+      div.style.left = '0';
+      div.style.width = '100%';
+      div.innerHTML = '<h1>Critical Error</h1><p>' + message + '</p><p>' + source + ':' + lineno + '</p>';
+      document.body.appendChild(div);
+    };
+    console.log("App starting...");
+  </script>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
 </html>
