@@ -1,16 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Save, Lock, User, AlertCircle, CheckCircle } from 'lucide-react';
+import { Save, Lock, User, AlertCircle, CheckCircle, Upload, Loader2, X, Store } from 'lucide-react';
 
 export const Configuracoes = () => {
     const { user } = useAuth();
     const [loading, setLoading] = useState(false);
+    const [uploadingLogo, setUploadingLogo] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const logoInputRef = useRef<HTMLInputElement>(null);
 
     // Profile State
     const [companyName, setCompanyName] = useState('');
     const [email, setEmail] = useState('');
+    const [logoUrl, setLogoUrl] = useState('');
 
     // Password State
     const [currentPassword, setCurrentPassword] = useState('');
@@ -21,8 +24,53 @@ export const Configuracoes = () => {
         if (user) {
             setCompanyName(user.user_metadata?.company_name || '');
             setEmail(user.email || '');
+            setLogoUrl(user.user_metadata?.company_logo || '');
         }
     }, [user]);
+
+    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0 || !user) return;
+
+        const file = e.target.files[0];
+        if (file.size > 2 * 1024 * 1024) { // 2MB
+            setMessage({ type: 'error', text: 'A logo deve ter no máximo 2MB.' });
+            return;
+        }
+
+        setUploadingLogo(true);
+        setMessage(null);
+
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `logo-${Date.now()}.${fileExt}`;
+            const filePath = `${user.id}/${fileName}`;
+
+            // Upload
+            const { error: uploadError } = await supabase.storage
+                .from('company-logos')
+                .upload(filePath, file, { upsert: true });
+
+            if (uploadError) throw uploadError;
+
+            // Get Public URL
+            const { data } = supabase.storage.from('company-logos').getPublicUrl(filePath);
+            setLogoUrl(data.publicUrl);
+
+            // Auto update user profile with new logo
+            const { error: updateError } = await supabase.auth.updateUser({
+                data: { company_logo: data.publicUrl }
+            });
+            if (updateError) throw updateError;
+
+            setMessage({ type: 'success', text: 'Logo atualizado com sucesso!' });
+
+        } catch (error: any) {
+            console.error(error);
+            setMessage({ type: 'error', text: 'Erro no upload do logo: ' + error.message });
+        } finally {
+            setUploadingLogo(false);
+        }
+    };
 
     const handleUpdateProfile = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -31,7 +79,7 @@ export const Configuracoes = () => {
 
         try {
             const updates: any = {
-                data: { company_name: companyName }
+                data: { company_name: companyName, company_logo: logoUrl }
             };
 
             // Only include email if it changed (triggers confirmation flow)
@@ -49,6 +97,12 @@ export const Configuracoes = () => {
                     ? 'Perfil atualizado! Verifique seu novo e-mail para confirmar a alteração.'
                     : 'Perfil atualizado com sucesso.'
             });
+
+            // Force reload to update layout if name changed
+            if (companyName !== user?.user_metadata?.company_name) {
+                setTimeout(() => window.location.reload(), 1500);
+            }
+
         } catch (error: any) {
             setMessage({ type: 'error', text: error.message });
         } finally {
@@ -98,112 +152,150 @@ export const Configuracoes = () => {
     };
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8 pb-10">
-            <h1 className="text-2xl font-bold mb-6">Configurações da Conta</h1>
+        <div className="max-w-2xl mx-auto pb-20">
+            <h1 className="text-2xl font-bold text-slate-900 mb-6">Configurações</h1>
 
             {message && (
-                <div className={`p-4 rounded-xl flex items-center gap-3 ${message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
-                    }`}>
-                    {message.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
-                    <p>{message.text}</p>
+                <div className={`p-4 rounded-lg mb-6 flex items-start gap-3 ${message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                    {message.type === 'success' ? <CheckCircle className="shrink-0 mt-0.5" size={18} /> : <AlertCircle className="shrink-0 mt-0.5" size={18} />}
+                    <p className="text-sm font-medium">{message.text}</p>
                 </div>
             )}
 
-            {/* Profile Section */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
-                    <User className="text-[var(--primary)]" size={24} />
-                    <h2 className="text-lg font-bold text-slate-900">Dados do Perfil</h2>
-                </div>
+            <div className="space-y-8">
+                {/* Profile Settings */}
+                <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h2 className="text-lg font-bold mb-6 flex items-center gap-2 border-b border-slate-100 pb-4">
+                        <User size={20} className="text-slate-400" />
+                        Perfil da Empresa
+                    </h2>
 
-                <form onSubmit={handleUpdateProfile} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="mb-8">
+                        <label className="block text-sm font-medium mb-3 text-slate-700">Logotipo da Clínica</label>
+                        <div className="flex items-start gap-6">
+                            <div className="w-24 h-24 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-center overflow-hidden relative group">
+                                {logoUrl ? (
+                                    <>
+                                        <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-2" />
+                                        <button
+                                            type="button"
+                                            onClick={() => setLogoUrl('')}
+                                            className="absolute inset-0 bg-slate-900/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white"
+                                            title="Remover Logo"
+                                        >
+                                            <X size={20} />
+                                        </button>
+                                    </>
+                                ) : (
+                                    <Store className="text-slate-300" size={32} />
+                                )}
+
+                                {uploadingLogo && (
+                                    <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+                                        <Loader2 className="animate-spin text-[var(--primary)]" />
+                                    </div>
+                                )}
+                            </div>
+                            <div>
+                                <input
+                                    type="file"
+                                    ref={logoInputRef}
+                                    onChange={handleLogoUpload}
+                                    className="hidden"
+                                    accept="image/png, image/jpeg, image/jpg"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => logoInputRef.current?.click()}
+                                    className="px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 mb-2"
+                                    disabled={uploadingLogo}
+                                >
+                                    <Upload size={16} />
+                                    {logoUrl ? 'Alterar Logo' : 'Carregar Logo'}
+                                </button>
+                                <p className="text-xs text-slate-500 max-w-[200px]">
+                                    Recomendado: Imagem quadrada (500x500px), PNG ou JPG. Máx 2MB.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form onSubmit={handleUpdateProfile} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Nome da Empresa</label>
+                            <label className="block text-sm font-medium mb-1">Nome da Empresa / Clínica</label>
                             <input
-                                type="text"
-                                className="w-full p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[var(--primary)] outline-none transition-all"
+                                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all"
                                 value={companyName}
-                                onChange={(e) => setCompanyName(e.target.value)}
+                                onChange={e => setCompanyName(e.target.value)}
+                                placeholder="Ex: Clínica Saúde Total"
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
+                            <label className="block text-sm font-medium mb-1">E-mail de Acesso</label>
                             <input
                                 type="email"
-                                className="w-full p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[var(--primary)] outline-none transition-all"
+                                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all"
                                 value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                onChange={e => setEmail(e.target.value)}
                             />
-                            <p className="text-xs text-slate-500 mt-1">Alterar o e-mail exigirá nova confirmação.</p>
+                            <p className="text-xs text-slate-400 mt-1">Alterar o e-mail exigirá uma nova confirmação.</p>
                         </div>
-                    </div>
+                        <div className="pt-4 flex justify-end">
+                            <button type="submit" disabled={loading} className="btn btn-primary flex items-center gap-2">
+                                {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                                Salvar Alterações
+                            </button>
+                        </div>
+                    </form>
+                </section>
 
-                    <div className="flex justify-end pt-4">
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="btn btn-primary"
-                        >
-                            <Save size={18} />
-                            Salvar Alterações
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            {/* Password Section */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
-                    <Lock className="text-[var(--primary)]" size={24} />
-                    <h2 className="text-lg font-bold text-slate-900">Segurança - Alterar Senha</h2>
-                </div>
-
-                <form onSubmit={handleUpdatePassword} className="space-y-4 max-w-md">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Senha Atual</label>
-                        <input
-                            type="password"
-                            placeholder="Digite sua senha atual"
-                            className="w-full p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[var(--primary)] outline-none transition-all"
-                            value={currentPassword}
-                            onChange={(e) => setCurrentPassword(e.target.value)}
-                        />
-                    </div>
-
-                    <div className="pt-2">
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Nova Senha</label>
-                        <input
-                            type="password"
-                            placeholder="Mínimo 6 caracteres"
-                            className="w-full p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[var(--primary)] outline-none transition-all"
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Confirmar Nova Senha</label>
-                        <input
-                            type="password"
-                            placeholder="Repita a nova senha"
-                            className="w-full p-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[var(--primary)] outline-none transition-all"
-                            value={confirmNewPassword}
-                            onChange={(e) => setConfirmNewPassword(e.target.value)}
-                        />
-                    </div>
-
-                    <div className="flex justify-end pt-4">
-                        <button
-                            type="submit"
-                            disabled={loading || !currentPassword || !newPassword}
-                            className="btn bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            <Save size={18} />
-                            Atualizar Senha
-                        </button>
-                    </div>
-                </form>
+                {/* Password Settings */}
+                <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h2 className="text-lg font-bold mb-6 flex items-center gap-2 border-b border-slate-100 pb-4">
+                        <Lock size={20} className="text-slate-400" />
+                        Segurança
+                    </h2>
+                    <form onSubmit={handleUpdatePassword} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Senha Atual</label>
+                            <input
+                                type="password"
+                                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all"
+                                value={currentPassword}
+                                onChange={e => setCurrentPassword(e.target.value)}
+                                placeholder="Digite sua senha atual para confirmar"
+                            />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Nova Senha</label>
+                                <input
+                                    type="password"
+                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all"
+                                    value={newPassword}
+                                    onChange={e => setNewPassword(e.target.value)}
+                                    placeholder="Mínimo 6 caracteres"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Confirmar Nova Senha</label>
+                                <input
+                                    type="password"
+                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all"
+                                    value={confirmNewPassword}
+                                    onChange={e => setConfirmNewPassword(e.target.value)}
+                                    placeholder="Repita a nova senha"
+                                />
+                            </div>
+                        </div>
+                        <div className="pt-4 flex justify-end">
+                            <button type="submit" disabled={loading || !newPassword || !currentPassword} className="btn bg-slate-800 text-white hover:bg-slate-900 flex items-center gap-2">
+                                {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                                Atualizar Senha
+                            </button>
+                        </div>
+                    </form>
+                </section>
             </div>
         </div>
     );

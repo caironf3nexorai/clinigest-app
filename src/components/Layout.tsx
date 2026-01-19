@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
-import { LayoutDashboard, Wallet, Users, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Wallet, Users, Settings, LogOut, Calendar as CalendarIcon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const SidebarItem = ({ to, icon: Icon, label, active, onClick }: any) => {
@@ -10,8 +10,8 @@ const SidebarItem = ({ to, icon: Icon, label, active, onClick }: any) => {
             to={to}
             onClick={onClick}
             className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors w-full text-left ${active
-                    ? 'bg-[var(--primary)] text-white'
-                    : 'text-[var(--text-muted)] hover:bg-[var(--primary-light)] hover:text-[var(--primary)]'
+                ? 'bg-[var(--primary)] text-white'
+                : 'text-[var(--text-muted)] hover:bg-[var(--primary-light)] hover:text-[var(--primary)]'
                 }`}
         >
             <Icon size={20} />
@@ -27,18 +27,31 @@ export const Layout = () => {
     const navItems = [
         { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
         { to: '/custos', icon: Wallet, label: 'Custos' },
+        { to: '/agenda', icon: CalendarIcon, label: 'Agenda' },
         { to: '/pacientes', icon: Users, label: 'Pacientes' },
     ];
 
     return (
         <div className="flex min-h-screen bg-[var(--background)]">
             {/* Sidebar */}
-            <aside className="fixed top-0 left-0 h-full w-64 bg-[var(--surface)] border-r border-[var(--border)] p-4 flex flex-col z-10 hidden md:flex">
-                <div className="mb-8 flex items-center gap-2 px-2">
-                    <div className="w-8 h-8 bg-[var(--primary)] rounded-lg flex items-center justify-center text-white font-bold">
-                        C
-                    </div>
-                    <span className="text-xl font-bold tracking-tight text-[var(--text-main)]">CliniGest</span>
+            <aside className="fixed top-0 left-0 h-full w-64 bg-[var(--surface)] border-r border-[var(--border)] p-4 flex flex-col z-10 hidden md:flex print:hidden">
+                <div className="mb-8 flex items-center gap-3 px-2">
+                    {user?.user_metadata?.company_logo ? (
+                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-white border border-slate-200 shrink-0">
+                            <img
+                                src={user.user_metadata.company_logo}
+                                alt="Logo"
+                                className="w-full h-full object-cover"
+                            />
+                        </div>
+                    ) : (
+                        <div className="w-8 h-8 bg-[var(--primary)] rounded-lg flex items-center justify-center text-white font-bold shrink-0">
+                            {user?.user_metadata?.company_name?.[0]?.toUpperCase() || 'C'}
+                        </div>
+                    )}
+                    <span className="text-lg font-bold tracking-tight text-[var(--text-main)] truncate" title={user?.user_metadata?.company_name || 'CliniGest'}>
+                        {user?.user_metadata?.company_name || 'CliniGest'}
+                    </span>
                 </div>
 
                 <div className="mb-4 px-2">
@@ -73,7 +86,7 @@ export const Layout = () => {
             </aside>
 
             {/* Mobile Header (Visible only on small screens) */}
-            <header className="md:hidden fixed top-0 w-full bg-[var(--surface)] border-b border-[var(--border)] h-[var(--header-height)] flex items-center justify-between px-4 z-10">
+            <header className="md:hidden fixed top-0 w-full bg-[var(--surface)] border-b border-[var(--border)] h-[var(--header-height)] flex items-center justify-between px-4 z-10 print:hidden">
                 <span className="font-bold text-lg">CliniGest</span>
                 <button onClick={signOut} className="text-[var(--text-muted)]">
                     <LogOut size={20} />
@@ -88,7 +101,7 @@ export const Layout = () => {
             </main>
 
             {/* Mobile Bottom Nav */}
-            <nav className="md:hidden fixed bottom-0 w-full bg-[var(--surface)] border-t border-[var(--border)] flex justify-around p-3 z-10">
+            <nav className="md:hidden fixed bottom-0 w-full bg-[var(--surface)] border-t border-[var(--border)] flex justify-around p-3 z-10 print:hidden">
                 {navItems.map((item) => (
                     <Link
                         key={item.to}

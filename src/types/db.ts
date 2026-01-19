@@ -37,3 +37,14 @@ export type Profile = {
     valid_until: string;
     created_at: string;
 };
+
+export type Attachment = {
+    id: string;
+    created_at: string;
+    user_id: string;
+    patient_id: string;
+    file_name: string;
+    file_path: string;
+    file_type: string;
+    file_size: number;
+};

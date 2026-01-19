@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Search, Phone, Calendar, ArrowLeft, FileText, Activity, Pill, DollarSign, Clock, Stethoscope, Trash2, Edit, MessageCircle } from 'lucide-react';
+import { Plus, Search, Phone, Calendar, ArrowLeft, FileText, Activity, Pill, DollarSign, Clock, Stethoscope, Trash2, Edit, MessageCircle, Paperclip, Printer } from 'lucide-react';
 import type { Paciente, Consulta } from '../types/db';
 import { format, parseISO, differenceInYears } from 'date-fns';
+import { PatientAttachments } from '../components/PatientAttachments';
+import { PatientPrintView, printPatientRecord } from '../components/PatientPrintView';
 
 export const Pacientes = () => {
     const { user } = useAuth();
 
     // View State: 'list' | 'details'
     const [view, setView] = useState<'list' | 'details'>('list');
+    const [activeTab, setActiveTab] = useState<'history' | 'attachments'>('history');
     const [selectedPaciente, setSelectedPaciente] = useState<Paciente | null>(null);
 
     // Data State
@@ -225,7 +228,7 @@ export const Pacientes = () => {
 
     if (view === 'list') {
         return (
-            <div className="max-w-5xl mx-auto space-y-6 pb-20">
+            <div className="max-w-5xl mx-auto space-y-6 pb-20 print:hidden">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
                         <h1 className="text-2xl font-bold text-slate-900">Pacientes</h1>
@@ -370,203 +373,247 @@ export const Pacientes = () => {
 
     if (view === 'details' && selectedPaciente) {
         return (
-            <div className="max-w-6xl mx-auto pb-20">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={handleBackToList}
-                            className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"
-                        >
-                            <ArrowLeft size={24} />
-                        </button>
-                        <div>
-                            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                                {selectedPaciente.nome}
-                                <span className="text-sm font-normal text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-                                    Prontuário
-                                </span>
-                            </h1>
-                            <p className="text-slate-500 flex items-center gap-3 text-sm mt-1">
-                                {selectedPaciente.telefone && (
-                                    <span className="flex items-center gap-2">
-                                        <span className="flex items-center gap-1">
-                                            <Phone size={12} /> {selectedPaciente.telefone}
-                                        </span>
-                                        <button
-                                            onClick={(e) => openWhatsApp(e, selectedPaciente.telefone)}
-                                            className="text-green-600 hover:text-green-700 hover:underline flex items-center gap-1 text-xs font-semibold"
-                                        >
-                                            <MessageCircle size={12} /> Chamar no Zap
-                                        </button>
+            <>
+                <div className="max-w-6xl mx-auto pb-20 print:hidden">
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-4">
+                            <button
+                                onClick={handleBackToList}
+                                className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"
+                            >
+                                <ArrowLeft size={24} />
+                            </button>
+                            <div>
+                                <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                                    {selectedPaciente.nome}
+                                    <span className="text-sm font-normal text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+                                        Prontuário
                                     </span>
-                                )}
-                                {selectedPaciente.data_nascimento && <span><Calendar size={12} className="inline mr-1" />{differenceInYears(new Date(), parseISO(selectedPaciente.data_nascimento))} anos ({format(parseISO(selectedPaciente.data_nascimento), 'dd/MM/yyyy')})</span>}
-                            </p>
+                                </h1>
+                                <p className="text-slate-500 flex items-center gap-3 text-sm mt-1">
+                                    {selectedPaciente.telefone && (
+                                        <span className="flex items-center gap-2">
+                                            <span className="flex items-center gap-1">
+                                                <Phone size={12} /> {selectedPaciente.telefone}
+                                            </span>
+                                            <button
+                                                onClick={(e) => openWhatsApp(e, selectedPaciente.telefone)}
+                                                className="text-green-600 hover:text-green-700 hover:underline flex items-center gap-1 text-xs font-semibold"
+                                            >
+                                                <MessageCircle size={12} /> Chamar no Zap
+                                            </button>
+                                        </span>
+                                    )}
+                                    {selectedPaciente.data_nascimento && <span><Calendar size={12} className="inline mr-1" />{differenceInYears(new Date(), parseISO(selectedPaciente.data_nascimento))} anos ({format(parseISO(selectedPaciente.data_nascimento), 'dd/MM/yyyy')})</span>}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={printPatientRecord}
+                                className="btn bg-slate-800 text-white hover:bg-slate-900 flex items-center gap-2"
+                            >
+                                <Printer size={18} />
+                                Imprimir / Gerar PDF
+                            </button>
                         </div>
                     </div>
-                </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Left: New Consultation Form */}
-                    <div className="lg:col-span-1">
-                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm sticky top-24">
-                            <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-[var(--primary)]">
-                                <Stethoscope size={20} />
-                                Novo Atendimento
-                            </h2>
-                            <form onSubmit={handleCreateConsulta} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Data</label>
-                                    <input
-                                        type="date"
-                                        className="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                                        value={novaConsulta.data_consulta}
-                                        onChange={e => setNovaConsulta({ ...novaConsulta, data_consulta: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Queixa Principal</label>
-                                    <textarea
-                                        rows={2}
-                                        className="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                                        value={novaConsulta.queixa}
-                                        onChange={e => setNovaConsulta({ ...novaConsulta, queixa: e.target.value })}
-                                        placeholder="Dor, desconforto, checkup..."
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Evolução Clínica</label>
-                                    <textarea
-                                        rows={3}
-                                        className="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                                        value={novaConsulta.evolucao}
-                                        onChange={e => setNovaConsulta({ ...novaConsulta, evolucao: e.target.value })}
-                                        placeholder="Detalhes do exame clínico..."
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Procedimento Realizado</label>
-                                    <input
-                                        type="text"
-                                        className="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                                        value={novaConsulta.procedimento}
-                                        onChange={e => setNovaConsulta({ ...novaConsulta, procedimento: e.target.value })}
-                                        placeholder="Ex: Limpeza, Consulta, Exame"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Medicamentos / Prescrição</label>
-                                    <textarea
-                                        rows={2}
-                                        className="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                                        value={novaConsulta.medicamentos}
-                                        onChange={e => setNovaConsulta({ ...novaConsulta, medicamentos: e.target.value })}
-                                        placeholder="Dipirona 500mg..."
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Valor Cobrado (R$)</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        className="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                                        value={novaConsulta.valor_consulta}
-                                        onChange={e => setNovaConsulta({ ...novaConsulta, valor_consulta: e.target.value })}
-                                        placeholder="0.00"
-                                    />
-                                </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Left: New Consultation Form */}
+                        <div className="lg:col-span-1">
+                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm sticky top-24">
+                                <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-[var(--primary)]">
+                                    <Stethoscope size={20} />
+                                    Novo Atendimento
+                                </h2>
+                                <form onSubmit={handleCreateConsulta} className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Data</label>
+                                        <input
+                                            type="date"
+                                            className="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                            value={novaConsulta.data_consulta}
+                                            onChange={e => setNovaConsulta({ ...novaConsulta, data_consulta: e.target.value })}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Queixa Principal</label>
+                                        <textarea
+                                            rows={2}
+                                            className="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                            value={novaConsulta.queixa}
+                                            onChange={e => setNovaConsulta({ ...novaConsulta, queixa: e.target.value })}
+                                            placeholder="Dor, desconforto, checkup..."
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Evolução Clínica</label>
+                                        <textarea
+                                            rows={3}
+                                            className="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                            value={novaConsulta.evolucao}
+                                            onChange={e => setNovaConsulta({ ...novaConsulta, evolucao: e.target.value })}
+                                            placeholder="Detalhes do exame clínico..."
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Procedimento Realizado</label>
+                                        <input
+                                            type="text"
+                                            className="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                            value={novaConsulta.procedimento}
+                                            onChange={e => setNovaConsulta({ ...novaConsulta, procedimento: e.target.value })}
+                                            placeholder="Ex: Limpeza, Consulta, Exame"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Medicamentos / Prescrição</label>
+                                        <textarea
+                                            rows={2}
+                                            className="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                            value={novaConsulta.medicamentos}
+                                            onChange={e => setNovaConsulta({ ...novaConsulta, medicamentos: e.target.value })}
+                                            placeholder="Dipirona 500mg..."
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Valor Cobrado (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            className="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                            value={novaConsulta.valor_consulta}
+                                            onChange={e => setNovaConsulta({ ...novaConsulta, valor_consulta: e.target.value })}
+                                            placeholder="0.00"
+                                        />
+                                    </div>
 
-                                <button type="submit" className="btn btn-primary w-full">
-                                    Salvar Atendimento
+                                    <button type="submit" className="btn btn-primary w-full">
+                                        Salvar Atendimento
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        {/* Right: History Timeline & Attachments */}
+                        <div className="lg:col-span-2">
+                            {/* Tabs */}
+                            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg mb-6 w-fit">
+                                <button
+                                    onClick={() => setActiveTab('history')}
+                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'history'
+                                        ? 'bg-white text-[var(--primary)] shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Clock size={16} /> Histórico Clínico
+                                    </div>
                                 </button>
-                            </form>
-                        </div>
-                    </div>
+                                <button
+                                    onClick={() => setActiveTab('attachments')}
+                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'attachments'
+                                        ? 'bg-white text-[var(--primary)] shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Paperclip size={16} /> Anexos
+                                    </div>
+                                </button>
+                            </div>
 
-                    {/* Right: History Timeline */}
-                    <div className="lg:col-span-2">
-                        <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                            <Clock size={20} className="text-slate-400" />
-                            Histórico Clínico
-                        </h2>
-
-                        <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
-                            {consultas.length === 0 ? (
-                                <div className="text-center py-10 pl-8 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                                    <FileText className="mx-auto text-slate-300 mb-2" size={32} />
-                                    <p className="text-slate-500">Nenhum atendimento registrado.</p>
-                                </div>
+                            {activeTab === 'attachments' ? (
+                                <PatientAttachments patientId={selectedPaciente.id} />
                             ) : (
-                                consultas.map((consulta) => (
-                                    <div key={consulta.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                                        {/* Icon on Timeline */}
-                                        <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-100 group-[.is-active]:bg-[var(--primary-light)] text-slate-500 group-[.is-active]:text-[var(--primary)] shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
-                                            <Activity size={18} />
+                                <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
+                                    {consultas.length === 0 ? (
+                                        <div className="text-center py-10 pl-8 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                            <FileText className="mx-auto text-slate-300 mb-2" size={32} />
+                                            <p className="text-slate-500">Nenhum atendimento registrado.</p>
                                         </div>
+                                    ) : (
+                                        consultas.map((consulta) => (
+                                            <div key={consulta.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                                                {/* Icon on Timeline */}
+                                                <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-100 group-[.is-active]:bg-[var(--primary-light)] text-slate-500 group-[.is-active]:text-[var(--primary)] shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
+                                                    <Activity size={18} />
+                                                </div>
 
-                                        {/* Card */}
-                                        <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <time className="font-bold text-slate-900 flex items-center gap-1">
-                                                    {format(parseISO(consulta.data_consulta), 'dd/MM/yyyy')}
-                                                </time>
-                                                <div className="flex items-center gap-2">
-                                                    {consulta.valor_consulta && consulta.valor_consulta > 0 && (
-                                                        <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                                            <DollarSign size={10} />
-                                                            R$ {consulta.valor_consulta}
-                                                        </span>
-                                                    )}
-                                                    <button
-                                                        onClick={() => handleDeleteConsulta(consulta.id)}
-                                                        className="text-slate-300 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors"
-                                                        title="Excluir Atendimento"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
+                                                {/* Card */}
+                                                <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <time className="font-bold text-slate-900 flex items-center gap-1">
+                                                            {format(parseISO(consulta.data_consulta), 'dd/MM/yyyy')}
+                                                        </time>
+                                                        <div className="flex items-center gap-2">
+                                                            {consulta.valor_consulta && consulta.valor_consulta > 0 && (
+                                                                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                    <DollarSign size={10} />
+                                                                    R$ {consulta.valor_consulta}
+                                                                </span>
+                                                            )}
+                                                            <button
+                                                                onClick={() => handleDeleteConsulta(consulta.id)}
+                                                                className="text-slate-300 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors"
+                                                                title="Excluir Atendimento"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="space-y-2 text-sm">
+                                                        {consulta.procedimento && (
+                                                            <div className="font-semibold text-[var(--primary)]">
+                                                                {consulta.procedimento}
+                                                            </div>
+                                                        )}
+
+                                                        {consulta.queixa && (
+                                                            <div>
+                                                                <span className="text-slate-400 text-xs uppercase tracking-wider font-bold">Queixa:</span>
+                                                                <p className="text-slate-700">{consulta.queixa}</p>
+                                                            </div>
+                                                        )}
+
+                                                        {consulta.evolucao && (
+                                                            <div>
+                                                                <span className="text-slate-400 text-xs uppercase tracking-wider font-bold">Evolução:</span>
+                                                                <p className="text-slate-600 italic">"{consulta.evolucao}"</p>
+                                                            </div>
+                                                        )}
+
+                                                        {consulta.medicamentos && (
+                                                            <div className="bg-slate-50 p-2 rounded-lg mt-2 border border-slate-100">
+                                                                <span className="text-slate-400 text-xs uppercase tracking-wider font-bold flex items-center gap-1 mb-1">
+                                                                    <Pill size={12} /> Prescrição:
+                                                                </span>
+                                                                <p className="text-slate-700 font-medium">{consulta.medicamentos}</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
-
-                                            <div className="space-y-2 text-sm">
-                                                {consulta.procedimento && (
-                                                    <div className="font-semibold text-[var(--primary)]">
-                                                        {consulta.procedimento}
-                                                    </div>
-                                                )}
-
-                                                {consulta.queixa && (
-                                                    <div>
-                                                        <span className="text-slate-400 text-xs uppercase tracking-wider font-bold">Queixa:</span>
-                                                        <p className="text-slate-700">{consulta.queixa}</p>
-                                                    </div>
-                                                )}
-
-                                                {consulta.evolucao && (
-                                                    <div>
-                                                        <span className="text-slate-400 text-xs uppercase tracking-wider font-bold">Evolução:</span>
-                                                        <p className="text-slate-600 italic">"{consulta.evolucao}"</p>
-                                                    </div>
-                                                )}
-
-                                                {consulta.medicamentos && (
-                                                    <div className="bg-slate-50 p-2 rounded-lg mt-2 border border-slate-100">
-                                                        <span className="text-slate-400 text-xs uppercase tracking-wider font-bold flex items-center gap-1 mb-1">
-                                                            <Pill size={12} /> Prescrição:
-                                                        </span>
-                                                        <p className="text-slate-700 font-medium">{consulta.medicamentos}</p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
+                                        ))
+                                    )}
+                                </div>
                             )}
                         </div>
                     </div>
                 </div>
-            </div>
+
+                <PatientPrintView
+                    paciente={selectedPaciente}
+                    consultas={consultas}
+                    companyName={user?.user_metadata?.company_name}
+                />
+            </>
         );
     }
 
