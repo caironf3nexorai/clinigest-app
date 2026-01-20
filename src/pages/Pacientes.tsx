@@ -376,22 +376,22 @@ export const Pacientes = () => {
             <>
                 <div className="max-w-6xl mx-auto pb-20 print:hidden">
                     {/* Header */}
-                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                         <div className="flex items-center gap-4">
                             <button
                                 onClick={handleBackToList}
-                                className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"
+                                className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors shrink-0"
                             >
                                 <ArrowLeft size={24} />
                             </button>
-                            <div>
-                                <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                                    {selectedPaciente.nome}
-                                    <span className="text-sm font-normal text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+                            <div className="min-w-0">
+                                <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex flex-wrap items-center gap-2">
+                                    <span className="truncate">{selectedPaciente.nome}</span>
+                                    <span className="text-xs md:text-sm font-normal text-slate-500 bg-slate-100 px-2 py-1 rounded-full shrink-0">
                                         Prontuário
                                     </span>
                                 </h1>
-                                <p className="text-slate-500 flex items-center gap-3 text-sm mt-1">
+                                <p className="text-slate-500 flex flex-wrap items-center gap-3 text-sm mt-1">
                                     {selectedPaciente.telefone && (
                                         <span className="flex items-center gap-2">
                                             <span className="flex items-center gap-1">
@@ -411,10 +411,10 @@ export const Pacientes = () => {
                         </div>
 
                         {/* Actions */}
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 w-full md:w-auto">
                             <button
                                 onClick={printPatientRecord}
-                                className="btn bg-slate-800 text-white hover:bg-slate-900 flex items-center gap-2"
+                                className="btn bg-slate-800 text-white hover:bg-slate-900 flex items-center justify-center gap-2 w-full md:w-auto"
                             >
                                 <Printer size={18} />
                                 Imprimir / Gerar PDF
