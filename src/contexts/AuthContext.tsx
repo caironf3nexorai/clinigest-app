@@ -47,12 +47,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
 
             if (data) {
-                console.log('AuthContext: Profile loaded:', data); // DEBUG
+                // console.log('AuthContext: Profile loaded:', data); // DEBUG
                 setProfile(data);
+
+                // Admins always have valid subscription
+                if (data.is_admin) {
+                    setIsSubscriptionValid(true);
+                    return;
+                }
+
                 if (data.valid_until) {
                     const isValid = isAfter(parseISO(data.valid_until), new Date());
                     setIsSubscriptionValid(isValid);
                 } else {
+                    // No expiration date means indefinite access (valid)
                     setIsSubscriptionValid(true);
                 }
             } else {
