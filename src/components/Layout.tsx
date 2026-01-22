@@ -129,6 +129,15 @@ export const Layout = () => {
                     <Settings size={20} />
                     <span className="text-[10px]">Config</span>
                 </Link>
+                {user && isAdmin && (
+                    <Link
+                        to="/admin"
+                        className={`flex flex-col items-center gap-1 ${location.pathname === '/admin' ? 'text-indigo-600' : 'text-[var(--text-muted)]'}`}
+                    >
+                        <Shield size={20} />
+                        <span className="text-[10px]">Admin</span>
+                    </Link>
+                )}
             </nav>
         </div>
     );
