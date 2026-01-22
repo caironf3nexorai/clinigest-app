@@ -47,6 +47,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
 
             if (data) {
+                console.log('AuthContext: Profile loaded:', data); // DEBUG
                 setProfile(data);
                 if (data.valid_until) {
                     const isValid = isAfter(parseISO(data.valid_until), new Date());
@@ -55,6 +56,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     setIsSubscriptionValid(true);
                 }
             } else {
+                console.log('AuthContext: No profile found for user', userId); // DEBUG
                 setIsSubscriptionValid(true);
             }
         } catch (err) {
