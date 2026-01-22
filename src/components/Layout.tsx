@@ -1,6 +1,5 @@
-import React from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
-import { LayoutDashboard, Wallet, Users, Settings, LogOut, Calendar as CalendarIcon } from 'lucide-react';
+import { LayoutDashboard, Wallet, Users, Settings, LogOut, Calendar as CalendarIcon, Shield } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const SidebarItem = ({ to, icon: Icon, label, active, onClick }: any) => {
@@ -22,7 +21,7 @@ const SidebarItem = ({ to, icon: Icon, label, active, onClick }: any) => {
 
 export const Layout = () => {
     const location = useLocation();
-    const { signOut, user } = useAuth();
+    const { signOut, user, isAdmin } = useAuth();
 
     const navItems = [
         { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -64,6 +63,15 @@ export const Layout = () => {
                                 active={location.pathname === item.to}
                             />
                         ))}
+                        {user && isAdmin && (
+                            <SidebarItem
+                                to="/admin"
+                                icon={Shield}
+                                label="Painel Admin"
+                                active={location.pathname === '/admin'}
+                                className="text-indigo-600 hover:bg-indigo-50"
+                            />
+                        )}
                     </nav>
                 </div>
 

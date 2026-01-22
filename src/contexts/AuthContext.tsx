@@ -10,6 +10,7 @@ type AuthContextType = {
     profile: Profile | null;
     loading: boolean;
     isSubscriptionValid: boolean;
+    isAdmin: boolean;
     signOut: () => Promise<void>;
     checkSubscription: () => Promise<void>;
 };
@@ -20,6 +21,7 @@ const AuthContext = createContext<AuthContextType>({
     profile: null,
     loading: true,
     isSubscriptionValid: true,
+    isAdmin: false,
     signOut: async () => { },
     checkSubscription: async () => { },
 });
@@ -30,6 +32,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [profile, setProfile] = useState<Profile | null>(null);
     const [loading, setLoading] = useState(true);
     const [isSubscriptionValid, setIsSubscriptionValid] = useState(true);
+    const isAdmin = !!profile?.is_admin;
 
     const fetchProfile = useCallback(async (userId: string) => {
         try {
@@ -113,7 +116,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             clearTimeout(loadTimeout);
             subscription.unsubscribe();
         };
-    }, [fetchProfile]); // Removed loading from dependency to avoid loops
+    }, [fetchProfile]);
 
     const checkSubscription = async () => {
         if (user) {
@@ -134,7 +137,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ session, user, profile, loading, isSubscriptionValid, signOut, checkSubscription }}>
+        <AuthContext.Provider value={{ session, user, profile, loading, isSubscriptionValid, isAdmin, signOut, checkSubscription }}>
             {children}
         </AuthContext.Provider>
     );

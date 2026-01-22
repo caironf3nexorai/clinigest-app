@@ -6,3 +6,4 @@ export * from './Register';
 export * from './Configuracoes';
 export * from './SubscriptionExpired';
 export * from './Agenda';
+export * from './AdminDashboard';

@@ -35,6 +35,7 @@ export type Profile = {
     email: string;
     company_name: string;
     valid_until: string;
+    is_admin?: boolean;
     created_at: string;
 };
 

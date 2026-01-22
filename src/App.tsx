@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Layout } from './components/Layout';
-import { Dashboard, Custos, Pacientes, Login, Register, Configuracoes, SubscriptionExpired, Agenda } from './pages';
+import { Dashboard, Custos, Pacientes, Login, Register, Configuracoes, SubscriptionExpired, Agenda, AdminDashboard } from './pages';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Components to protect routes
@@ -19,6 +19,18 @@ const RequireAuth = ({ children, ignoreSubscription = false }: { children: React
 
   if (!ignoreSubscription && !isSubscriptionValid) {
     return <Navigate to="/subscription-expired" replace />;
+  }
+
+  return children;
+};
+
+const RequireAdmin = ({ children }: { children: React.ReactNode }) => {
+  const { session, loading, isAdmin } = useAuth();
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
+
+  if (!session || !isAdmin) {
+    return <Navigate to="/" replace />;
   }
 
   return children;
@@ -67,6 +79,11 @@ function App() {
             <Route path="pacientes" element={<Pacientes />} />
             <Route path="agenda" element={<Agenda />} />
             <Route path="configuracoes" element={<Configuracoes />} />
+            <Route path="admin" element={
+              <RequireAdmin>
+                <AdminDashboard />
+              </RequireAdmin>
+            } />
           </Route>
         </Routes>
       </BrowserRouter>
