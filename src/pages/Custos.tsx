@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Calculator } from '../components/Calculator';
-import { Plus, Calculator as CalcIcon, Trash2, Calendar, DollarSign, Tag, Clock } from 'lucide-react';
+import { Plus, Calculator as CalcIcon, Trash2, Calendar, DollarSign, Tag, Clock, Edit, Save } from 'lucide-react';
 import type { Custo } from '../types/db';
 import { format, isAfter, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -20,6 +20,9 @@ export const Custos = () => {
     const [dataPagamento, setDataPagamento] = useState(new Date().toISOString().split('T')[0]);
     const [dataValidade, setDataValidade] = useState('');
     const [isVariavel, setIsVariavel] = useState(false);
+
+    // Edit State
+    const [editingId, setEditingId] = useState<string | null>(null);
 
     useEffect(() => {
         fetchCustos();
@@ -55,7 +58,7 @@ export const Custos = () => {
         if (!user || !valor || !titulo) return;
 
         try {
-            const { error } = await supabase.from('custos').insert({
+            const payload = {
                 user_id: user.id,
                 titulo,
                 categoria: isVariavel ? 'Variável' : 'Fixa',
@@ -63,17 +66,29 @@ export const Custos = () => {
                 data_pagamento: dataPagamento,
                 data_validade: isVariavel && dataValidade ? dataValidade : null,
                 recorrente: !isVariavel
-            });
+            };
+
+            let error;
+
+            if (editingId) {
+                // Update existing record
+                const { error: updateError } = await supabase
+                    .from('custos')
+                    .update(payload)
+                    .eq('id', editingId);
+                error = updateError;
+            } else {
+                // Insert new record
+                const { error: insertError } = await supabase
+                    .from('custos')
+                    .insert(payload);
+                error = insertError;
+            }
 
             if (error) throw error;
 
             // Reset Form
-            setTitulo('');
-            setValor('');
-            setIsVariavel(false);
-            setDataValidade('');
-            setCategoria('Fixa');
-
+            resetForm();
             fetchCustos();
         } catch (error) {
             alert('Erro ao salvar custo');
@@ -81,11 +96,35 @@ export const Custos = () => {
         }
     };
 
+    const resetForm = () => {
+        setTitulo('');
+        setValor('');
+        setIsVariavel(false);
+        setDataValidade('');
+        setCategoria('Fixa');
+        setEditingId(null);
+        setDataPagamento(new Date().toISOString().split('T')[0]);
+    };
+
+    const handleEdit = (custo: Custo) => {
+        setEditingId(custo.id);
+        setTitulo(custo.titulo);
+        setValor(String(custo.valor));
+        setCategoria(custo.categoria);
+        setIsVariavel(custo.categoria === 'Variável');
+        setDataPagamento(custo.data_pagamento);
+        setDataValidade(custo.data_validade || '');
+
+        // Scroll to form (mobile UX)
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
     const handleDelete = async (id: string) => {
         if (!confirm('Tem certeza que deseja apagar este custo?')) return;
         try {
             await supabase.from('custos').delete().eq('id', id);
             setCustos(custos.filter(c => c.id !== id));
+            if (editingId === id) resetForm();
         } catch (error) {
             console.error(error);
         }
@@ -121,10 +160,10 @@ export const Custos = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Form Section */}
                 <div className="lg:col-span-1">
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm sticky top-24">
+                    <div className={`bg-white p-6 rounded-xl border shadow-sm sticky top-24 transition-colors ${editingId ? 'border-indigo-200 ring-2 ring-indigo-50' : 'border-slate-200'}`}>
                         <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                            <Plus className="text-[var(--primary)]" size={20} />
-                            Novo Custo
+                            {editingId ? <Edit className="text-indigo-600" size={20} /> : <Plus className="text-[var(--primary)]" size={20} />}
+                            {editingId ? 'Editar Custo' : 'Novo Custo'}
                         </h2>
 
                         <form onSubmit={handleSave} className="space-y-4">
@@ -207,11 +246,21 @@ export const Custos = () => {
 
                             <button
                                 type="submit"
-                                className="w-full btn btn-primary mt-2"
+                                className={`w-full btn mt-2 flex items-center justify-center gap-2 ${editingId ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'btn-primary'}`}
                             >
-                                <Plus size={18} />
-                                Adicionar Custo
+                                {editingId ? <Save size={18} /> : <Plus size={18} />}
+                                {editingId ? 'Salvar Alterações' : 'Adicionar Custo'}
                             </button>
+
+                            {editingId && (
+                                <button
+                                    type="button"
+                                    onClick={resetForm}
+                                    className="w-full py-2 text-slate-500 hover:bg-slate-100 rounded-lg text-sm font-medium"
+                                >
+                                    Cancelar Edição
+                                </button>
+                            )}
                         </form>
                     </div>
                 </div>
@@ -228,11 +277,11 @@ export const Custos = () => {
                         </div>
                     ) : (
                         custos.map((custo) => (
-                            <div key={custo.id} className="group bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex items-center justify-between">
+                            <div key={custo.id} className={`group bg-white p-4 rounded-xl border shadow-sm hover:shadow-md transition-all flex items-center justify-between ${editingId === custo.id ? 'border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50/10' : 'border-slate-200'}`}>
                                 <div className="flex items-center gap-4">
                                     <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${custo.categoria === 'Fixa'
-                                            ? 'bg-blue-50 text-blue-600'
-                                            : 'bg-orange-50 text-orange-600'
+                                        ? 'bg-blue-50 text-blue-600'
+                                        : 'bg-orange-50 text-orange-600'
                                         }`}>
                                         {custo.categoria === 'Fixa' ? 'F' : 'V'}
                                     </div>
@@ -253,17 +302,26 @@ export const Custos = () => {
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-6">
+                                <div className="flex items-center gap-4 sm:gap-6">
                                     <span className="text-lg font-bold text-slate-700">
                                         R$ {Number(custo.valor).toFixed(2)}
                                     </span>
-                                    <button
-                                        onClick={() => handleDelete(custo.id)}
-                                        className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                                        title="Excluir"
-                                    >
-                                        <Trash2 size={18} />
-                                    </button>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={() => handleEdit(custo)}
+                                            className="p-2 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
+                                            title="Editar"
+                                        >
+                                            <Edit size={18} />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDelete(custo.id)}
+                                            className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                            title="Excluir"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ))
