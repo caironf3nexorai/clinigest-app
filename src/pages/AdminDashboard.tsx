@@ -39,8 +39,13 @@ export const AdminDashboard = () => {
         }
     };
 
+    const [editName, setEditName] = useState('');
+    const [editUsername, setEditUsername] = useState('');
+
     const handleEditClick = (profile: Profile) => {
         setEditingId(profile.id);
+        setEditName(profile.company_name || '');
+        setEditUsername(profile.username || '');
         if (profile.valid_until) {
             setEditDate(format(parseISO(profile.valid_until), 'yyyy-MM-dd'));
         } else {
@@ -53,19 +58,22 @@ export const AdminDashboard = () => {
         setEditDate('');
     };
 
-    const handleSaveDate = async (profileId: string) => {
+    const handleSaveProfile = async (profileId: string) => {
         setSaving(true);
         try {
-            let updatePayload: any = {};
+            let updatePayload: any = {
+                company_name: editName,
+                username: editUsername || null
+            };
 
             if (editDate) {
                 // Set end of day for the selected date
                 const newDate = new Date(editDate);
                 newDate.setHours(23, 59, 59, 999);
-                updatePayload = { valid_until: newDate.toISOString() };
+                updatePayload.valid_until = newDate.toISOString();
             } else {
                 // Empty date = Indefinite (null)
-                updatePayload = { valid_until: null };
+                updatePayload.valid_until = null;
             }
 
             const { error } = await supabase
@@ -75,12 +83,19 @@ export const AdminDashboard = () => {
 
             if (error) throw error;
 
+            // Note: Admin bypasses the 15-day limit automatically because we don't check it here.
+
             // Update local state
-            setProfiles(profiles.map(p => p.id === profileId ? { ...p, valid_until: updatePayload.valid_until } : p));
+            setProfiles(profiles.map(p => p.id === profileId ? {
+                ...p,
+                valid_until: updatePayload.valid_until,
+                company_name: updatePayload.company_name,
+                username: updatePayload.username
+            } : p));
             setEditingId(null);
         } catch (err: any) {
             console.error(err);
-            alert('Erro ao salvar data: ' + err.message);
+            alert('Erro ao salvar: ' + err.message);
         } finally {
             setSaving(false);
         }
@@ -132,6 +147,7 @@ export const AdminDashboard = () => {
 
     // Manual Registration State
     const [regName, setRegName] = useState('');
+    const [regUsername, setRegUsername] = useState('');
     const [regEmail, setRegEmail] = useState('');
     const [regPassword, setRegPassword] = useState('');
     const [regDays, setRegDays] = useState(7);
@@ -164,6 +180,7 @@ export const AdminDashboard = () => {
                     password: regPassword,
                     data: {
                         company_name: regName,
+                        username: regUsername
                     }
                 })
             });
@@ -182,16 +199,12 @@ export const AdminDashboard = () => {
                 validUntil.setDate(validUntil.getDate() + Number(regDays));
                 validUntil.setHours(23, 59, 59, 999);
 
-                // 3. Manually insert profile (since auto-trigger might miss metadata or we want specific validity)
-                // Note: The trigger creates the profile on insert to auth.users usually.
-                // We will try to UPDATE the profile that the trigger likely created.
-                // Wait for a second for trigger to fire? Best effort update.
-
-                // Let's retry update a few times or insert if missing
+                // 3. Manually insert/update profile
                 const { error: updateError } = await supabase
                     .from('profiles')
                     .update({
                         company_name: regName,
+                        username: regUsername,
                         valid_until: validUntil.toISOString()
                     })
                     .eq('id', newUserId);
@@ -202,13 +215,15 @@ export const AdminDashboard = () => {
                         id: newUserId,
                         email: regEmail,
                         company_name: regName,
+                        username: regUsername,
                         valid_until: validUntil.toISOString()
                     });
                 }
 
-                alert(`Cliente cadastrado com sucesso!\n\nEmail: ${regEmail}\nSenha: ${regPassword}\nValidade: ${regDays} dias`);
+                alert(`Cliente cadastrado com sucesso!\n\nEmail: ${regEmail}\nUsuário: ${regUsername}\nSenha: ${regPassword}\nValidade: ${regDays} dias`);
                 setShowInviteModal(false);
                 setRegName('');
+                setRegUsername('');
                 setRegEmail('');
                 setRegPassword('');
                 fetchProfiles(); // Refresh list
@@ -263,6 +278,19 @@ export const AdminDashboard = () => {
                                         onChange={e => setRegName(e.target.value)}
                                         className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                                         placeholder="Ex: Clínica Saúde"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Usuário de Login</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={regUsername}
+                                        onChange={e => setRegUsername(e.target.value)}
+                                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        placeholder="ex: clinica_saude"
+                                        pattern="[a-zA-Z0-9_.-]+"
+                                        title="Apenas letras, números, ponto, traço e underline."
                                     />
                                 </div>
                                 <div>
@@ -351,6 +379,7 @@ export const AdminDashboard = () => {
                             <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
                                 <tr>
                                     <th className="px-6 py-4">Empresa / Clínica</th>
+                                    <th className="px-6 py-4">Login (Usuário)</th>
                                     <th className="px-6 py-4">Email (Admin)</th>
                                     <th className="px-6 py-4">Cadastro</th>
                                     <th className="px-6 py-4">Validade Assinatura</th>
@@ -362,8 +391,35 @@ export const AdminDashboard = () => {
                                 {profiles.map(profile => (
                                     <tr key={profile.id} className="hover:bg-slate-50 transition-colors">
                                         <td className="px-6 py-4 font-medium text-slate-900">
-                                            {profile.company_name || 'Sem nome'}
-                                            {profile.is_admin && <span className="ml-2 text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200">ADMIN</span>}
+                                            {editingId === profile.id ? (
+                                                <input
+                                                    type="text"
+                                                    value={editName}
+                                                    onChange={e => setEditName(e.target.value)}
+                                                    className="p-1 border rounded w-full text-xs"
+                                                    placeholder="Nome Empresa"
+                                                />
+                                            ) : (
+                                                <>
+                                                    {profile.company_name || 'Sem nome'}
+                                                    {profile.is_admin && <span className="ml-2 text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200">ADMIN</span>}
+                                                </>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 text-slate-600">
+                                            {editingId === profile.id ? (
+                                                <input
+                                                    type="text"
+                                                    value={editUsername}
+                                                    onChange={e => setEditUsername(e.target.value)}
+                                                    className="p-1 border rounded w-full text-xs"
+                                                    placeholder="usuario_login"
+                                                />
+                                            ) : (
+                                                <span className="font-mono text-xs bg-slate-100 px-2 py-1 rounded">
+                                                    {profile.username || '-'}
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 text-slate-600">{profile.email}</td>
                                         <td className="px-6 py-4 text-slate-500">
@@ -403,7 +459,7 @@ export const AdminDashboard = () => {
                                             {editingId === profile.id ? (
                                                 <div className="flex items-center justify-end gap-2">
                                                     <button
-                                                        onClick={() => handleSaveDate(profile.id)}
+                                                        onClick={() => handleSaveProfile(profile.id)}
                                                         disabled={saving}
                                                         className="p-1.5 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
                                                         title="Salvar"

@@ -34,6 +34,7 @@ export type Profile = {
     id: string;
     email: string;
     company_name: string;
+    username?: string;
     valid_until: string;
     is_admin?: boolean;
     created_at: string;

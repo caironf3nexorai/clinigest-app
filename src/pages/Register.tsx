@@ -7,13 +7,14 @@ export const Register = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [companyName, setCompanyName] = useState('');
+    const [username, setUsername] = useState('');
     const [message, setMessage] = useState('');
     const navigate = useNavigate();
 
     const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!email || !password || !companyName) {
+        if (!email || !password || !companyName || !username) {
             setMessage('Por favor, preencha todos os campos.');
             return;
         }
@@ -27,7 +28,8 @@ export const Register = () => {
             password,
             options: {
                 data: {
-                    company_name: companyName, // Storing in user_metadata
+                    company_name: companyName,
+                    username: username,
                 }
             }
         });
@@ -38,10 +40,11 @@ export const Register = () => {
             return;
         }
 
-        // 2. Create Profile (Optional, depending on DB preference, but good practice)
-        // For now, we rely on metadata, but we could insert into a 'profiles' table here.
+        // 2. Create Profile (handled by Trigger, but we can explicit insert if needed)
+        // With trigger, metadata username will be copied to profile if trigger supports it.
+        // Assuming trigger copies raw_user_meta_data -> profile columns.
 
-        setMessage('Cadastro realizado! Verifique seu e-mail.');
+        setMessage('Cadastro realizado! Verifique seu e-mail para confirmar.');
         setLoading(false);
     };
 
@@ -68,6 +71,19 @@ export const Register = () => {
                             value={companyName}
                             onChange={(e) => setCompanyName(e.target.value)}
                             required
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium mb-1">Usuário de Login</label>
+                        <input
+                            type="text"
+                            className="w-full p-2 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)] outline-none"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            required
+                            placeholder="ex: clinica_saude"
+                            pattern="[a-zA-Z0-9_.-]+"
+                            title="Apenas letras, números, ponto, traço e underline."
                         />
                     </div>
                     <div>
