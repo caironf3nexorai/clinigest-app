@@ -4,7 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 
 export const Login = () => {
     const [loading, setLoading] = useState(false);
-    const [email, setEmail] = useState('');
+    const [loginInput, setLoginInput] = useState('');
     const [password, setPassword] = useState('');
     const [message, setMessage] = useState('');
     const navigate = useNavigate();
@@ -14,16 +14,33 @@ export const Login = () => {
         setLoading(true);
         setMessage('');
 
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
+        try {
+            let emailToUse = loginInput.trim();
 
-        if (error) {
-            setMessage(error.message);
+            // If input doesn't look like an email, try to find the username
+            if (!emailToUse.includes('@')) {
+                const { data: emailData, error: lookupError } = await supabase
+                    .rpc('get_email_by_username', { uname: emailToUse });
+
+                if (lookupError || !emailData) {
+                    throw new Error('Usuário não encontrado. Verifique se digitou corretamente.');
+                }
+                emailToUse = emailData as string;
+            }
+
+            const { error } = await supabase.auth.signInWithPassword({
+                email: emailToUse,
+                password,
+            });
+
+            if (error) {
+                throw error;
+            } else {
+                navigate('/');
+            }
+        } catch (err: any) {
+            setMessage(err.message || 'Erro ao realizar login');
             setLoading(false);
-        } else {
-            navigate('/');
         }
     };
 
@@ -43,13 +60,14 @@ export const Login = () => {
 
                 <form className="space-y-4" onSubmit={handleLogin}>
                     <div>
-                        <label className="block text-sm font-medium mb-1">Email</label>
+                        <label className="block text-sm font-medium mb-1">Email ou Usuário</label>
                         <input
-                            type="email"
+                            type="text"
                             className="w-full p-2 rounded-lg border border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)] outline-none"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
+                            value={loginInput}
+                            onChange={(e) => setLoginInput(e.target.value)}
                             required
+                            placeholder="seu@email.com ou usuario"
                         />
                     </div>
                     <div>
