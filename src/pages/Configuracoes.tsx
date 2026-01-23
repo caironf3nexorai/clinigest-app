@@ -12,8 +12,10 @@ export const Configuracoes = () => {
 
     // Profile State
     const [companyName, setCompanyName] = useState('');
+    const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [logoUrl, setLogoUrl] = useState('');
+    const [lastChange, setLastChange] = useState<string | null>(null);
 
     // Password State
     const [currentPassword, setCurrentPassword] = useState('');
@@ -22,11 +24,30 @@ export const Configuracoes = () => {
 
     useEffect(() => {
         if (user) {
-            setCompanyName(user.user_metadata?.company_name || '');
-            setEmail(user.email || '');
-            setLogoUrl(user.user_metadata?.company_logo || '');
+            loadProfileData();
         }
     }, [user]);
+
+    const loadProfileData = async () => {
+        // Fetch from public.profiles to get the true state and username
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('company_name, username, email, company_logo, last_name_change')
+            .eq('id', user?.id)
+            .single();
+
+        if (data) {
+            setCompanyName(data.company_name || '');
+            setUsername(data.username || '');
+            setEmail(data.email || user?.email || '');
+            setLogoUrl(data.company_logo || '');
+            setLastChange(data.last_name_change);
+        } else {
+            // Fallback to session metadata if profile fetch fails
+            setCompanyName(user?.user_metadata?.company_name || '');
+            setEmail(user?.email || '');
+        }
+    };
 
     const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0 || !user) return;
@@ -56,13 +77,9 @@ export const Configuracoes = () => {
             const { data } = supabase.storage.from('company-logos').getPublicUrl(filePath);
             setLogoUrl(data.publicUrl);
 
-            // Auto update user profile with new logo
-            const { error: updateError } = await supabase.auth.updateUser({
-                data: { company_logo: data.publicUrl }
-            });
-            if (updateError) throw updateError;
-
-            setMessage({ type: 'success', text: 'Logo atualizado com sucesso!' });
+            // User needs to save to create permanence or we can update just the logo here
+            // But we want 'handleUpdateProfile' logic.
+            setMessage({ type: 'success', text: 'Logo carregado. Clique em "Salvar Alterações" para confirmar.' });
 
         } catch (error: any) {
             console.error(error);
@@ -74,32 +91,74 @@ export const Configuracoes = () => {
 
     const handleUpdateProfile = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!user) return;
         setLoading(true);
         setMessage(null);
 
         try {
-            const updates: any = {
-                data: { company_name: companyName, company_logo: logoUrl }
-            };
+            // 1. Check 15-day limit if name or username changed
+            const { data: currentProfile } = await supabase.from('profiles').select('company_name, username, last_name_change').eq('id', user.id).single();
 
-            // Only include email if it changed (triggers confirmation flow)
-            if (email !== user?.email) {
-                updates.email = email;
+            const isNameChanged = companyName !== currentProfile?.company_name;
+            const isUserChanged = username !== currentProfile?.username;
+
+            if (isNameChanged || isUserChanged) {
+                if (currentProfile?.last_name_change) {
+                    const lastDate = new Date(currentProfile.last_name_change);
+                    const now = new Date();
+                    const diffDays = Math.ceil((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+
+                    if (diffDays < 15) {
+                        throw new Error(`Você só pode alterar o nome/usuário a cada 15 dias. Próxima alteração disponível em ${15 - diffDays} dias.`);
+                    }
+                }
             }
 
-            const { error } = await supabase.auth.updateUser(updates);
+            // 2. Update public.profiles (Source of Truth)
+            const updates: any = {
+                company_name: companyName,
+                username: username, // Ensure uniqueness handled by DB constraint
+                company_logo: logoUrl
+            };
 
-            if (error) throw error;
+            if (isNameChanged || isUserChanged) {
+                updates.last_name_change = new Date().toISOString();
+            }
+
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .update(updates)
+                .eq('id', user.id);
+
+            if (profileError) {
+                if (profileError.message.includes('unique')) throw new Error('Este nome de usuário já está em uso.');
+                throw profileError;
+            }
+
+            // 3. Sync with Auth Metadata (for session availability)
+            const { error: authError } = await supabase.auth.updateUser({
+                email: email !== user.email ? email : undefined,
+                data: {
+                    company_name: companyName,
+                    company_logo: logoUrl,
+                    username: username
+                }
+            });
+
+            if (authError) throw authError;
 
             setMessage({
                 type: 'success',
-                text: email !== user?.email
-                    ? 'Perfil atualizado! Verifique seu novo e-mail para confirmar a alteração.'
-                    : 'Perfil atualizado com sucesso.'
+                text: email !== user.email
+                    ? 'Perfil atualizado! Verifique seu novo e-mail para confirmar a troca.'
+                    : 'Perfil e Login atualizados com sucesso.'
             });
 
-            // Force reload to update layout if name changed
-            if (companyName !== user?.user_metadata?.company_name) {
+            // Refresh data
+            loadProfileData();
+
+            // Force reload if name changed to reflect everywhere instantly
+            if (isNameChanged) {
                 setTimeout(() => window.location.reload(), 1500);
             }
 
@@ -221,6 +280,22 @@ export const Configuracoes = () => {
                     </div>
 
                     <form onSubmit={handleUpdateProfile} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Nome de Usuário (Login)</label>
+                            <input
+                                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all"
+                                value={username}
+                                onChange={e => setUsername(e.target.value)}
+                                placeholder="usuario_login"
+                                pattern="[a-zA-Z0-9_.-]+"
+                                title="Apenas letras, números, ponto, traço e underline."
+                            />
+                            <p className="text-xs text-slate-400 mt-1">
+                                {lastChange
+                                    ? `Última alteração: ${new Date(lastChange).toLocaleDateString()}. Próxima disponível em: ${new Date(new Date(lastChange).getTime() + 15 * 24 * 60 * 60 * 1000).toLocaleDateString()}`
+                                    : 'Atenção: A cada 15 dias você poderá alterar seu usuário e nome da clínica.'}
+                            </p>
+                        </div>
                         <div>
                             <label className="block text-sm font-medium mb-1">Nome da Empresa / Clínica</label>
                             <input
