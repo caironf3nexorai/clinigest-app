@@ -324,48 +324,62 @@ const CalendarView = () => {
         }
     };
 
-    // Action: Finalize
-    const handleComplete = async () => {
+    // Action: Open Completion Modal
+    const handleComplete = () => {
         if (!linkedAppointment) return;
-        if (!selectedProcedureId && showFinance) return alert('Selecione um procedimento para calcular comissão.');
 
-        if (!confirm('Finalizar atendimento e registrar comissão?')) return;
+        // Pre-fill form
+        const proc = procedures.find(p => p.id === selectedProcedureId || p.id === linkedAppointment.procedure_id);
+        const valor = proc ? proc.price : 0;
+
+        setCompletionForm({
+            queixa: linkedAppointment.queixa || '',
+            evolucao: linkedAppointment.evolucao || '',
+            medicamentos: linkedAppointment.medicamentos || '',
+            procedure_id: selectedProcedureId || linkedAppointment.procedure_id || '',
+            valor: valor.toString()
+        });
+
+        setShowCompletionModal(true);
+    };
+
+    // Action: Actual Save
+    const handleConfirmCompletion = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!linkedAppointment) return;
+
         setLoadingLink(true);
 
         try {
             let commission = 0;
-            if (selectedProcedureId) {
-                const proc = procedures.find(p => p.id === selectedProcedureId);
+            const finalProcedureId = completionForm.procedure_id || selectedProcedureId;
+
+            if (finalProcedureId) {
+                const proc = procedures.find(p => p.id === finalProcedureId);
                 if (proc) {
                     // Determine percentage: Specific Rule -> Default Procedure
                     let percentage = proc.commission_percentage;
 
                     // Check for exception rule
-                    // The 'user_id' on the appointment is the Professional
                     if (linkedAppointment.user_id) {
-                        console.log('DEBUG: Searching Commission Rule', {
-                            dentistId: linkedAppointment.user_id,
-                            procId: selectedProcedureId
-                        });
                         const { data: rule } = await supabase
                             .from('dentist_commissions')
                             .select('commission_percentage')
                             .eq('dentist_id', linkedAppointment.user_id)
-                            .eq('procedure_id', selectedProcedureId)
+                            .eq('procedure_id', finalProcedureId)
                             .eq('active', true)
                             .maybeSingle();
 
                         if (rule) {
-                            console.log('DEBUG: Found Rule', rule);
                             percentage = rule.commission_percentage;
-                        } else {
-                            console.log('DEBUG: No Rule Found, using default', percentage);
                         }
                     }
 
-                    const profit = proc.price - (proc.lab_cost || 0);
-                    commission = profit * (percentage / 100);
-                    console.log('DEBUG: Final Calculation', { profit, percentage, commission });
+                    // Calculate based on captured Value (allows overriding price)
+                    // Profit = CapturedValue - LabCost
+                    const valorCobrado = parseFloat(completionForm.valor) || 0;
+                    const profit = valorCobrado - (proc.lab_cost || 0);
+                    commission = profit > 0 ? profit * (percentage / 100) : 0;
                 }
             }
 
@@ -373,21 +387,30 @@ const CalendarView = () => {
                 .from('consultas')
                 .update({
                     status: 'completed',
-                    procedure_id: selectedProcedureId,
+                    procedure_id: finalProcedureId || null,
                     recorded_commission: commission,
+                    queixa: completionForm.queixa,
+                    evolucao: completionForm.evolucao,
+                    medicamentos: completionForm.medicamentos,
+                    valor_consulta: parseFloat(completionForm.valor) || 0,
                     // end_time: new Date().toISOString()
                 })
                 .eq('id', linkedAppointment.id);
 
             if (error) throw error;
 
-            // Visual feedback (Optimistic update)
-            setLinkedAppointment({ ...linkedAppointment, status: 'completed', recorded_commission: commission } as any);
-            alert(`Atendimento finalizado! Comissão registrada: R$ ${commission.toFixed(2)}`);
+            // Visual feedback
+            setLinkedAppointment({
+                ...linkedAppointment,
+                status: 'completed',
+                recorded_commission: commission,
+                queixa: completionForm.queixa,
+                evolucao: completionForm.evolucao,
+                medicamentos: completionForm.medicamentos
+            } as any);
 
-            // Update Google Calendar Event Color (PATCH)
-            // Note: This needs token logic.
-            // GoogleAuthService.patchEventColor(selectedEvent.id, '10'); // Green
+            setShowCompletionModal(false);
+            alert(`Atendimento finalizado com sucesso! Comissão: R$ ${commission.toFixed(2)}`);
 
         } catch (err: any) {
             alert('Erro: ' + err.message);
@@ -574,6 +597,112 @@ const CalendarView = () => {
                                 Fechar
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Completion Data Modal */}
+            {showCompletionModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-4 bg-emerald-600 flex justify-between items-center text-white">
+                            <h3 className="font-bold text-lg flex items-center gap-2">
+                                <Stethoscope size={20} /> Finalizar Atendimento
+                            </h3>
+                            <button onClick={() => setShowCompletionModal(false)} className="text-white/80 hover:text-white">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleConfirmCompletion} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Queixa Principal</label>
+                                <textarea
+                                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm resize-none"
+                                    rows={2}
+                                    placeholder="Dor, desconforto, checkup..."
+                                    value={completionForm.queixa}
+                                    onChange={e => setCompletionForm({ ...completionForm, queixa: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Evolução Clínica</label>
+                                <textarea
+                                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm resize-none"
+                                    rows={3}
+                                    placeholder="Detalhes do que foi realizado..."
+                                    required
+                                    value={completionForm.evolucao}
+                                    onChange={e => setCompletionForm({ ...completionForm, evolucao: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Procedimento</label>
+                                    <select
+                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-white"
+                                        value={completionForm.procedure_id}
+                                        onChange={e => {
+                                            const pid = e.target.value;
+                                            const proc = procedures.find(p => p.id === pid);
+                                            setCompletionForm({
+                                                ...completionForm,
+                                                procedure_id: pid,
+                                                valor: proc ? proc.price.toString() : completionForm.valor
+                                            });
+                                        }}
+                                        required
+                                    >
+                                        <option value="">Selecione...</option>
+                                        {procedures.map(p => (
+                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Valor Cobrado (R$)</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                                        value={completionForm.valor}
+                                        onChange={e => setCompletionForm({ ...completionForm, valor: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Medicamentos / Prescrição</label>
+                                <textarea
+                                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm resize-none"
+                                    rows={2}
+                                    placeholder="Dipirona 500mg..."
+                                    value={completionForm.medicamentos}
+                                    onChange={e => setCompletionForm({ ...completionForm, medicamentos: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="pt-2 flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCompletionModal(false)}
+                                    className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={loadingLink}
+                                    className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 transition-colors shadow-sm flex items-center gap-2"
+                                >
+                                    {loadingLink ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                                    Salvar Prontuário
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
