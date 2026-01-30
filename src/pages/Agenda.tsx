@@ -399,6 +399,14 @@ const CalendarView = () => {
 
             if (error) throw error;
 
+            // Update Patient's Last Professional (Live History)
+            if (linkedAppointment.paciente_id && linkedAppointment.user_id) {
+                await supabase
+                    .from('pacientes')
+                    .update({ last_professional_id: linkedAppointment.user_id })
+                    .eq('id', linkedAppointment.paciente_id);
+            }
+
             // Visual feedback
             setLinkedAppointment({
                 ...linkedAppointment,

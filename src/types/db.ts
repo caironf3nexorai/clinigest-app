@@ -50,6 +50,7 @@ export type Paciente = {
     telefone: string;
     data_nascimento?: string;
     email?: string;
+    last_professional_id?: string;
 };
 
 export type AppointmentStatus = 'scheduled' | 'confirmed' | 'completed' | 'no_show' | 'cancelled';

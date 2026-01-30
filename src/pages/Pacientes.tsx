@@ -351,7 +351,7 @@ export const Pacientes = () => {
                                             {/* Registered By */}
                                             <div className="text-xs text-slate-400 flex items-center gap-1 mb-1">
                                                 <User size={10} />
-                                                <span>Profissional: {teamNames[paciente.user_id] || 'Carregando...'}</span>
+                                                <span>Profissional: {teamNames[paciente.last_professional_id || paciente.user_id] || teamNames[paciente.user_id] || '...'}</span>
                                             </div>
 
                                             <div className="flex items-center gap-3 text-sm text-slate-500">
