@@ -45,8 +45,17 @@ export const Login = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4">
-            <div className="max-w-md w-full bg-[var(--surface)] p-8 rounded-xl shadow-lg border border-[var(--border)]">
+        <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4 relative overflow-hidden">
+            {/* Background Image Watermark */}
+            <div
+                className="absolute inset-0 z-0 bg-cover bg-center"
+                style={{ backgroundImage: "url('/login-bg.png')" }}
+            >
+                {/* Overlay to make it subtle/watermark-like */}
+                <div className="absolute inset-0 bg-white/85 backdrop-blur-[1px]"></div>
+            </div>
+
+            <div className="max-w-md w-full bg-[var(--surface)] p-8 rounded-xl shadow-lg border border-[var(--border)] relative z-10">
                 <div className="text-center mb-8">
                     <h1 className="text-2xl font-bold text-[var(--primary)]">Clinic+</h1>
                     <p className="text-[var(--text-muted)] mt-2">Bem-vindo de volta! Faça login para continuar.</p>
