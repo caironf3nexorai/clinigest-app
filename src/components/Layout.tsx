@@ -1,5 +1,5 @@
 import { Link, useLocation, Outlet } from 'react-router-dom';
-import { LayoutDashboard, Wallet, Users, Settings, LogOut, Calendar as CalendarIcon, Shield } from 'lucide-react';
+import { LayoutDashboard, Wallet, Users, Settings, LogOut, Calendar as CalendarIcon, Shield, DollarSign, Briefcase, FileText } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const SidebarItem = ({ to, icon: Icon, label, active, onClick }: any) => {
@@ -21,14 +21,44 @@ const SidebarItem = ({ to, icon: Icon, label, active, onClick }: any) => {
 
 export const Layout = () => {
     const location = useLocation();
-    const { signOut, user, isAdmin } = useAuth();
+    const { signOut, user, profile, isAdmin } = useAuth();
 
+    // 1. Roles & Permissions
+    const role = profile?.role || 'clinic_owner';
+    const isSuperAdmin = role === 'super_admin';
+    const isOwner = role === 'clinic_owner' || isSuperAdmin;
+
+    // 2. Plan Configuration
+    // Super Admin overrides Simple Mode (sees everything)
+    const planSimpleMode = profile?.plan_config?.simple_mode === true;
+    const isSimpleMode = planSimpleMode && !isSuperAdmin;
+
+    // Base Menu
     const navItems = [
         { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-        { to: '/custos', icon: Wallet, label: 'Custos' },
         { to: '/agenda', icon: CalendarIcon, label: 'Agenda' },
         { to: '/pacientes', icon: Users, label: 'Pacientes' },
     ];
+
+    // Owner / Super Admin Menu Logic
+    if (isOwner) {
+        // [PRO ONLY] Financeiro (Full Dashboard)
+        if (!isSimpleMode) {
+            navItems.splice(1, 0, { to: '/financeiro', icon: Wallet, label: 'Financeiro' });
+        }
+
+        // [ALL PLANS] Despesas
+        navItems.push({ to: '/custos', icon: DollarSign, label: 'Despesas' });
+
+        // [PRO ONLY] Advanced Settings & Teams
+        if (!isSimpleMode) {
+            navItems.push({ to: '/procedimentos', icon: Settings, label: 'Serviços' });
+            navItems.push({ to: '/comissoes', icon: FileText, label: 'Comissões' });
+            navItems.push({ to: '/equipe', icon: Briefcase, label: 'Equipe' });
+        }
+    }
+
+    // Filter out if Simple Mode hides specific things? (Already handled by Role mostly)
 
     return (
         <div className="flex min-h-screen bg-[var(--background)]">
@@ -53,8 +83,8 @@ export const Layout = () => {
                     </span>
                 </div>
 
-                <div className="mb-4 px-2">
-                    <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2">Menu</p>
+                <div className="mb-4 px-2 flex-1 overflow-y-auto">
+                    <p className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2">Menu ({role === 'clinic_owner' ? 'Dono' : role === 'secretary' ? 'Sec' : 'Dr.'})</p>
                     <nav className="space-y-1">
                         {navItems.map((item) => (
                             <SidebarItem
@@ -142,3 +172,4 @@ export const Layout = () => {
         </div>
     );
 };
+

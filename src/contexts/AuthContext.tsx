@@ -32,7 +32,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [profile, setProfile] = useState<Profile | null>(null);
     const [loading, setLoading] = useState(true);
     const [isSubscriptionValid, setIsSubscriptionValid] = useState(true);
-    const isAdmin = !!profile?.is_admin;
+    const isAdmin = !!profile?.is_admin || profile?.role === 'super_admin';
 
     const fetchProfile = useCallback(async (userId: string) => {
         try {
@@ -106,7 +106,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         initializeAuth();
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             if (!mounted) return;
 
             setSession(session);
@@ -115,6 +115,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             if (session?.user) {
                 // Background update on auth change
                 fetchProfile(session.user.id);
+
+                // Save Google Tokens if available (Auth Integration)
+                if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+                    // Start saving process without blocking the UI
+                    import('../services/googleAuth').then(({ GoogleAuthService }) => {
+                        GoogleAuthService.saveTokens(session);
+                    });
+                }
             } else {
                 setProfile(null);
                 setLoading(false);

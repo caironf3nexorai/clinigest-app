@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
-import { format, parse, startOfWeek, getDay } from 'date-fns';
+import { format, parse, startOfWeek, getDay, startOfMonth, endOfMonth, endOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
-import { Calendar as CalendarIcon, LogIn, LogOut, RefreshCw, X, MapPin, AlignLeft, Clock } from 'lucide-react';
+import { Calendar as CalendarIcon, LogIn, LogOut, RefreshCw, X, MapPin, AlignLeft, Clock, Check, User as UserIcon, AlertCircle, DollarSign, Loader2 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { Procedure, Paciente, Consulta, AppointmentStatus } from '../types/db';
+import { useAuth } from '../contexts/AuthContext';
+import { useFeatureFlag } from '../hooks/useFeatureFlag';
 
 const locales = {
     'pt-BR': ptBR,
@@ -19,179 +23,406 @@ const localizer = dateFnsLocalizer({
     locales,
 });
 
+// ... (Keep existing imports/localizer)
+
 const CalendarView = () => {
+    const { user, profile } = useAuth();
+    const showFinance = useFeatureFlag('financial_module');
+    const isSimpleMode = profile?.plan_config?.simple_mode || false;
+    const isDentist = profile?.role === 'dentist';
+
     const [events, setEvents] = useState<any[]>([]);
     const [calendars, setCalendars] = useState<any[]>([]);
     const [selectedCalendarIds, setSelectedCalendarIds] = useState<Set<string>>(new Set());
     const [isConnected, setIsConnected] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-    const [selectedEvent, setSelectedEvent] = useState<any>(null); // Estado para o modal
+    const [selectedEvent, setSelectedEvent] = useState<any>(null);
+    const [accessToken, setAccessToken] = useState<string | null>(null);
 
-    // Estados para controle de navegação (Conserta os botões)
     const [date, setDate] = useState(new Date());
     const [view, setView] = useState<any>('month');
 
-    // Recupera token salvo ao abrir a página
-    useEffect(() => {
-        const savedToken = localStorage.getItem('google_access_token');
-        const tokenExpiration = localStorage.getItem('google_token_expires');
+    // New State for System Integration
+    const [procedures, setProcedures] = useState<Procedure[]>([]);
+    const [patients, setPatients] = useState<Paciente[]>([]);
+    const [linkedAppointment, setLinkedAppointment] = useState<Consulta | null>(null);
+    const [loadingLink, setLoadingLink] = useState(false);
 
-        if (savedToken && tokenExpiration) {
-            const now = new Date().getTime();
-            if (now < parseInt(tokenExpiration)) {
-                loadAllCalendarsAndEvents(savedToken);
-            } else {
-                localStorage.removeItem('google_access_token');
-                localStorage.removeItem('google_token_expires');
+    // Form State for Modal
+    const [selectedProcedureId, setSelectedProcedureId] = useState('');
+    const [selectedPatientId, setSelectedPatientId] = useState('');
+
+    // Mapped State
+    const [dentistMap, setDentistMap] = useState<Record<string, string>>({}); // CalendarID -> UserID
+
+    useEffect(() => {
+        if (user) {
+            // Load Procedures and Patients
+            Promise.all([
+                supabase.from('procedures').select('*').order('name'),
+                supabase.from('pacientes').select('*').order('nome')
+            ]).then(([procRes, patRes]) => {
+                if (procRes.data) setProcedures(procRes.data);
+                if (patRes.data) setPatients(patRes.data);
+            });
+
+            // Load Profiles map (Calendar -> User)
+            supabase.from('profiles').select('id, linked_calendar_id')
+                .not('linked_calendar_id', 'is', null)
+                .then(({ data }) => {
+                    const map: Record<string, string> = {};
+                    console.log('DEBUG: Raw Profiles Data for Map', data);
+
+                    data?.forEach(p => {
+                        if (p.linked_calendar_id) {
+                            const cleanId = p.linked_calendar_id.trim();
+                            map[cleanId] = p.id;
+                        }
+                    });
+                    console.log('DEBUG: Generated Dentist Map', map);
+                    setDentistMap(map);
+                });
+
+            // Restore Google Session
+            const storedToken = localStorage.getItem('google_access_token');
+            if (storedToken) {
+                setAccessToken(storedToken);
+                setIsConnected(true);
+                loadAllCalendarsAndEvents(storedToken);
             }
         }
-    }, []);
+    }, [user]);
 
-    // Configuração do Login Google
+    // Login Hook
     const login = useGoogleLogin({
-        onSuccess: tokenResponse => {
-            // Salva token por 50 minutos (tokens do Google duram 1h)
-            const expiresIn = new Date().getTime() + 50 * 60 * 1000;
+        scope: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
+        onSuccess: async (tokenResponse) => {
             localStorage.setItem('google_access_token', tokenResponse.access_token);
-            localStorage.setItem('google_token_expires', expiresIn.toString());
-
-            loadAllCalendarsAndEvents(tokenResponse.access_token);
+            setAccessToken(tokenResponse.access_token);
+            setIsConnected(true);
+            await loadAllCalendarsAndEvents(tokenResponse.access_token);
         },
-        scope: 'https://www.googleapis.com/auth/calendar.readonly'
+        onError: error => console.error('Login Failed:', error)
     });
 
     const logout = () => {
+        localStorage.removeItem('google_access_token');
+        setAccessToken(null);
         setIsConnected(false);
         setEvents([]);
         setCalendars([]);
-        localStorage.removeItem('google_access_token');
-        localStorage.removeItem('google_token_expires');
+        setSelectedCalendarIds(new Set());
     };
 
-    const loadAllCalendarsAndEvents = useCallback(async (accessToken: string) => {
+    const loadAllCalendarsAndEvents = async (token: string) => {
         setIsLoading(true);
-        // Não resetar isConnected aqui para evitar flicker se já estiver conectado
         try {
-            // 1. Listar todos os calendários do usuário
-            const calendarsResponse = await axios.get('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
-                headers: { Authorization: `Bearer ${accessToken}` }
+            // 1. Fetch Calendars
+            const calRes = await axios.get('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+                headers: { Authorization: `Bearer ${token}` }
             });
 
-            const calendarItems = calendarsResponse.data.items;
+            let loadedCalendars = calRes.data.items || [];
 
-            // Preserva seleção anterior se existir, senão seleciona todos
-            setCalendars(calendarItems);
-            setSelectedCalendarIds(prev => {
-                if (prev.size > 0) return prev;
-                return new Set(calendarItems.map((c: any) => c.id));
-            });
-
-            // 2. Para cada calendário, buscar os eventos
-            const eventsPromises = calendarItems.map(async (calendar: any) => {
-                try {
-                    const response = await axios.get(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendar.id)}/events`, {
-                        headers: { Authorization: `Bearer ${accessToken}` },
-                        params: {
-                            timeMin: new Date(new Date().setMonth(new Date().getMonth() - 12)).toISOString(), // 1 ano atrás
-                            showDeleted: false,
-                            singleEvents: true,
-                            orderBy: 'startTime',
-                        }
-                    });
-
-                    return response.data.items.map((item: any) => ({
-                        title: item.summary,
-                        description: item.description, // Capturando descrição
-                        location: item.location,       // Capturando local
-                        start: new Date(item.start.dateTime || item.start.date),
-                        end: new Date(item.end.dateTime || item.end.date),
-                        allDay: !item.start.dateTime,
-                        resource: {
-                            calendarColor: calendar.backgroundColor,
-                            calendarId: calendar.id
-                        }
-                    }));
-                } catch (err) {
-                    console.warn(`Erro ao ler calendário ${calendar.summary}`, err);
-                    return [];
-                }
-            });
-
-            const results = await Promise.all(eventsPromises);
-            const allEvents = results.flat();
-
-            setEvents(allEvents);
-            setLastUpdated(new Date());
-            setIsConnected(true);
-        } catch (error: any) {
-            console.error('Erro ao carregar agenda', error);
-            if (error.response && error.response.status === 401) {
-                // Token expirou
-                logout();
-                alert('Sua sessão do Google expirou. Por favor, conecte novamente.');
-            } else {
-                alert('Erro ao carregar agenda do Google. Tente novamente.');
-                setIsConnected(false);
+            // DENTIST FILTER ENFORCEMENT
+            if (isDentist && profile?.linked_calendar_id) {
+                loadedCalendars = loadedCalendars.filter((c: any) => c.id === profile.linked_calendar_id);
+            } else if (isDentist) {
+                // Dentist needs a linked calendar but has none
+                // Keep empty or show a warning?
+                // Let's show primary if nothing linked? No, strictly linked for security.
+                loadedCalendars = [];
+                console.warn("Dentista sem agenda vinculada no perfil.");
             }
+
+            setCalendars(loadedCalendars);
+
+            // Auto-select all calendars initially (or just the dentist's one)
+            const initialIds = new Set<string>(loadedCalendars.map((c: any) => String(c.id)));
+            setSelectedCalendarIds(initialIds);
+
+
+            // 2. Fetch Events for selected calendars
+            const start = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1);
+            const end = new Date(new Date().getFullYear(), new Date().getMonth() + 2, 0);
+            await fetchEventsForCalendars(token, loadedCalendars, initialIds, start, end);
+            setLastUpdated(new Date());
+
+        } catch (error) {
+            console.error("Error loading calendar data", error);
+            alert("Erro ao carregar agenda. Verifique as permissões.");
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    };
 
-    // Atualização Automática a cada 60 segundos
-    useEffect(() => {
-        if (!isConnected) return;
+    const fetchEventsForCalendars = async (token: string, cals: any[], ids: Set<string>, start: Date, end: Date) => {
+        const allEvents: any[] = [];
+        const timeMin = start.toISOString();
+        const timeMax = end.toISOString();
+        console.log('DEBUG: Fetching Events Range', { timeMin, timeMax });
 
-        const interval = setInterval(() => {
-            const token = localStorage.getItem('google_access_token');
-            if (token) {
-                loadAllCalendarsAndEvents(token);
+        const promises = cals.filter(c => ids.has(c.id)).map(async (cal) => {
+            try {
+                const updatedMin = timeMin; // Optimization: Could adapt based on view
+                const res = await axios.get(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                    params: {
+                        timeMin: timeMin,
+                        timeMax: timeMax,
+                        singleEvents: true,
+                        orderBy: 'startTime',
+                        maxResults: 250
+                    }
+                });
+
+                const mapped = (res.data.items || []).map((ev: any) => ({
+                    ...ev,
+                    start: new Date(ev.start.dateTime || ev.start.date),
+                    end: new Date(ev.end.dateTime || ev.end.date),
+                    allDay: !ev.start.dateTime,
+                    resource: { calendarId: cal.id, calendarColor: cal.backgroundColor }
+                }));
+                return mapped;
+            } catch (e) {
+                console.warn(`Failed to fetch events for ${cal.summary}`, e);
+                return [];
             }
-        }, 60000); // 60 segundos
+        });
 
-        return () => clearInterval(interval);
-    }, [isConnected, loadAllCalendarsAndEvents]);
+        const results = await Promise.all(promises);
+        results.forEach(arr => allEvents.push(...arr));
+        setEvents(allEvents);
+    };
 
     const handleManualRefresh = () => {
-        const token = localStorage.getItem('google_access_token');
-        if (token) {
-            loadAllCalendarsAndEvents(token);
-        }
-    };
-
-    const toggleCalendar = (calendarId: string) => {
-        const newSelected = new Set(selectedCalendarIds);
-        if (newSelected.has(calendarId)) {
-            newSelected.delete(calendarId);
-        } else {
-            newSelected.add(calendarId);
-        }
-        setSelectedCalendarIds(newSelected);
-    };
-
-    const filteredEvents = events.filter(e => selectedCalendarIds.has(e.resource.calendarId));
-
-    const eventPropGetter = (event: any) => {
-        const backgroundColor = event.resource?.calendarColor || '#3174ad';
-        return { style: { backgroundColor } };
+        if (accessToken) loadAllCalendarsAndEvents(accessToken);
     };
 
     const handleMonthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.value) return;
-        const [year, month] = e.target.value.split('-');
-        const newDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+        const [y, m] = e.target.value.split('-');
+        const newDate = new Date(parseInt(y), parseInt(m) - 1, 1);
         setDate(newDate);
+        // Trigger fetch if date changed significantly (not implemented here for brevity, usually useEffect on date)
     };
 
-    // Handler para clique no evento
-    const handleSelectEvent = (event: any) => {
-        setSelectedEvent(event);
+    // Re-fetch when date changes (debounced ideally, but here simple)
+    // Re-fetch when date changes (debounced ideally, but here simple)
+    useEffect(() => {
+        if (isConnected && accessToken && calendars.length > 0) {
+            const start = new Date(date.getFullYear(), date.getMonth() - 1, 1);
+            const end = new Date(date.getFullYear(), date.getMonth() + 2, 0);
+            fetchEventsForCalendars(accessToken, calendars, selectedCalendarIds, start, end);
+        }
+    }, [date]); // Simple trigger
+
+    const toggleCalendar = (id: string) => {
+        const newSet = new Set(selectedCalendarIds);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setSelectedCalendarIds(newSet);
+
+        if (accessToken) {
+            const start = new Date(date.getFullYear(), date.getMonth() - 1, 1);
+            const end = new Date(date.getFullYear(), date.getMonth() + 2, 0);
+            fetchEventsForCalendars(accessToken, calendars, newSet, start, end);
+        }
     };
+
+    // Filtered Events logic is actually redundant if we only fetch what we want,
+    // but useful for client-side toggling without API calls if we cached enough.
+    // In this implementation, fetchEventsForCalendars updates 'events' state directly based on selected IDs.
+    const filteredEvents = events;
+
+    // Handle Event Click -> Load Linked Data
+    const handleSelectEvent = async (event: any) => {
+        setSelectedEvent(event);
+        setLinkedAppointment(null);
+        setSelectedProcedureId('');
+        setSelectedPatientId('');
+        setLoadingLink(true);
+
+        try {
+            // Try to find appointment by google_event_id
+            const { data, error } = await supabase
+                .from('consultas')
+                .select('*, paciente:pacientes(*), procedure:procedures(*)')
+                .eq('google_event_id', event.id || '') // Google Event ID should be string
+                .maybeSingle();
+
+            if (data) {
+                setLinkedAppointment(data as any);
+                setSelectedProcedureId(data.procedure_id || '');
+                setSelectedPatientId(data.paciente_id);
+            } else {
+                // Smart guess patient by title? (Optional)
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoadingLink(false);
+        }
+    };
+
+    // Action: Link/Create Appointment
+    // Action: Link/Create Appointment
+    const handleLinkAppointment = async () => {
+        if (!selectedPatientId) return alert('Selecione um paciente');
+        setLoadingLink(true);
+        try {
+            // Determine Professional (based on Calendar Owner)
+            const rawCalendarId = selectedEvent.resource?.calendarId;
+            const calendarId = rawCalendarId ? rawCalendarId.trim() : '';
+
+            let professionalId = dentistMap?.[calendarId];
+
+            // SECURITY CHECK: If no dentist mapped, prevent "Secretary" attribution
+            if (!professionalId) {
+                // If I am a dentist linking my own calendar event (maybe personal/primary), it's ok.
+                if (profile?.role === 'dentist' || profile?.role === 'clinic_owner') {
+                    // Ideally we should warn, but for Owner/Dentist self-use, we permit fallback IF it matches their own email? 
+                    // For now, let's be strict: force them to link.
+                    // Actually, let's keep the fallback for Dentist to avoid breaking "My Agenda" flow if they haven't set it up yet.
+                    professionalId = user?.id;
+                    console.log('DEBUG: Using self-ID as fallback (Role Dentist/Owner)');
+                } else {
+                    // Critical Error for Secretaries
+                    const errMessage = `ERRO DE VINCULAÇÃO:\n\nNão identifiquei o Dentista desta agenda (${calendarId}).\n\nPor favor, copie este ID e vincule-o ao Dentista na tela de 'Equipe'.`;
+                    alert(errMessage);
+                    console.error('Link Blocked: Missing Dentist Mapping', calendarId);
+                    setLoadingLink(false);
+                    return;
+                }
+            }
+
+            console.log('DEBUG: Linking Appointment', {
+                calendarId,
+                mapResult: dentistMap ? dentistMap[calendarId] : 'No Map',
+                finalProfessionalId: professionalId
+            });
+
+            const payload = {
+                user_id: professionalId,
+                owner_id: profile?.owner_id || user?.id, // Ensure Clinic Scope
+                paciente_id: selectedPatientId,
+                procedure_id: selectedProcedureId || null,
+                data_consulta: selectedEvent.start.toISOString(),
+                google_event_id: selectedEvent.id || 'manual_sync', // Fallback
+                status: 'scheduled' as AppointmentStatus
+            };
+
+            const { data, error } = await supabase.from('consultas').insert(payload).select().single();
+            if (error) throw error;
+            setLinkedAppointment(data as any);
+            alert('Vinculado com sucesso!');
+        } catch (err: any) {
+            alert('Erro ao vincular: ' + err.message);
+        } finally {
+            setLoadingLink(false);
+        }
+    };
+
+    // Action: Finalize
+    const handleComplete = async () => {
+        if (!linkedAppointment) return;
+        if (!selectedProcedureId && showFinance) return alert('Selecione um procedimento para calcular comissão.');
+
+        if (!confirm('Finalizar atendimento e registrar comissão?')) return;
+        setLoadingLink(true);
+
+        try {
+            let commission = 0;
+            if (selectedProcedureId) {
+                const proc = procedures.find(p => p.id === selectedProcedureId);
+                if (proc) {
+                    // Determine percentage: Specific Rule -> Default Procedure
+                    let percentage = proc.commission_percentage;
+
+                    // Check for exception rule
+                    // The 'user_id' on the appointment is the Professional
+                    if (linkedAppointment.user_id) {
+                        console.log('DEBUG: Searching Commission Rule', {
+                            dentistId: linkedAppointment.user_id,
+                            procId: selectedProcedureId
+                        });
+                        const { data: rule } = await supabase
+                            .from('dentist_commissions')
+                            .select('commission_percentage')
+                            .eq('dentist_id', linkedAppointment.user_id)
+                            .eq('procedure_id', selectedProcedureId)
+                            .eq('active', true)
+                            .maybeSingle();
+
+                        if (rule) {
+                            console.log('DEBUG: Found Rule', rule);
+                            percentage = rule.commission_percentage;
+                        } else {
+                            console.log('DEBUG: No Rule Found, using default', percentage);
+                        }
+                    }
+
+                    const profit = proc.price - (proc.lab_cost || 0);
+                    commission = profit * (percentage / 100);
+                    console.log('DEBUG: Final Calculation', { profit, percentage, commission });
+                }
+            }
+
+            const { error } = await supabase
+                .from('consultas')
+                .update({
+                    status: 'completed',
+                    procedure_id: selectedProcedureId,
+                    recorded_commission: commission,
+                    // end_time: new Date().toISOString()
+                })
+                .eq('id', linkedAppointment.id);
+
+            if (error) throw error;
+
+            // Visual feedback (Optimistic update)
+            setLinkedAppointment({ ...linkedAppointment, status: 'completed', recorded_commission: commission } as any);
+            alert(`Atendimento finalizado! Comissão registrada: R$ ${commission.toFixed(2)}`);
+
+            // Update Google Calendar Event Color (PATCH)
+            // Note: This needs token logic.
+            // GoogleAuthService.patchEventColor(selectedEvent.id, '10'); // Green
+
+        } catch (err: any) {
+            alert('Erro: ' + err.message);
+        } finally {
+            setLoadingLink(false);
+        }
+    };
+
+    // Action: No Show
+    const handleNoShow = async () => {
+        if (!linkedAppointment) return;
+        if (!confirm('Marcar como Falta?')) return;
+
+        const { error } = await supabase
+            .from('consultas')
+            .update({ status: 'no_show', recorded_commission: 0 })
+            .eq('id', linkedAppointment.id);
+
+        if (!error) {
+            setLinkedAppointment({ ...linkedAppointment, status: 'no_show', recorded_commission: 0 } as any);
+        }
+    };
+
+    const eventPropGetter = useCallback(
+        (event: any) => ({
+            style: {
+                backgroundColor: event.resource?.calendarColor || '#3174ad',
+            },
+        }),
+        []
+    );
 
     return (
         <div className="space-y-6 relative">
-            {/* Modal de Detalhes do Evento */}
+            {/* Modal Detalhes */}
             {selectedEvent && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setSelectedEvent(null)}>
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
@@ -201,39 +432,140 @@ const CalendarView = () => {
                                 <X size={20} />
                             </button>
                         </div>
-                        <div className="p-6 space-y-4">
-                            <div className="flex items-start gap-3 text-slate-600">
+
+                        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                            {/* Basic Info */}
+                            <div className="flex items-start gap-3 text-slate-600 border-b border-slate-100 pb-4">
                                 <Clock className="w-5 h-5 mt-0.5 text-slate-400 shrink-0" />
                                 <div>
                                     <p className="font-medium text-slate-900">
                                         {format(selectedEvent.start, "EEEE, dd 'de' MMMM", { locale: ptBR })}
                                     </p>
                                     <p className="text-sm">
-                                        {selectedEvent.allDay
-                                            ? 'Dia inteiro'
-                                            : `${format(selectedEvent.start, 'HH:mm')} - ${format(selectedEvent.end, 'HH:mm')}`
-                                        }
+                                        {selectedEvent.allDay ? 'Dia inteiro' : `${format(selectedEvent.start, 'HH:mm')} - ${format(selectedEvent.end, 'HH:mm')}`}
                                     </p>
                                 </div>
                             </div>
 
-                            {selectedEvent.location && (
-                                <div className="flex items-start gap-3 text-slate-600">
-                                    <MapPin className="w-5 h-5 mt-0.5 text-slate-400 shrink-0" />
-                                    <p className="text-sm leading-relaxed">{selectedEvent.location}</p>
-                                </div>
-                            )}
+                            {/* Integration Section */}
+                            <div className="bg-slate-50 p-4 rounded-lg space-y-3">
+                                <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                    <img src="/favicon.ico" className="w-4 h-4" alt="" onError={(e) => e.currentTarget.style.display = 'none'} />
+                                    Sistema Clinic+
+                                </h4>
 
-                            {selectedEvent.description && (
-                                <div className="flex items-start gap-3 text-slate-600">
-                                    <AlignLeft className="w-5 h-5 mt-0.5 text-slate-400 shrink-0" />
-                                    <div
-                                        className="text-sm leading-relaxed prose prose-sm max-w-none"
-                                        dangerouslySetInnerHTML={{ __html: selectedEvent.description }}
-                                    />
-                                </div>
-                            )}
+                                {loadingLink ? <Loader2 className="animate-spin text-slate-400" /> : linkedAppointment ? (
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <UserIcon size={16} className="text-slate-400" />
+                                            <span className="font-medium">{patients.find(p => p.id === linkedAppointment.paciente_id)?.nome || 'Paciente não encontrado'}</span>
+                                        </div>
+
+                                        <div>
+                                            <label className="text-xs font-semibold text-slate-500 uppercase">Status</label>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                {linkedAppointment.status === 'completed' && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-bold flex items-center gap-1"><Check size={12} /> Finalizado</span>}
+                                                {linkedAppointment.status === 'no_show' && <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded font-bold flex items-center gap-1"><X size={12} /> Faltou</span>}
+                                                {linkedAppointment.status === 'scheduled' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">Agendado</span>}
+                                            </div>
+                                        </div>
+
+                                        {showFinance && (
+                                            <div>
+                                                <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Procedimento</label>
+                                                {linkedAppointment.status === 'completed' ? (
+                                                    <div className="text-sm font-medium">
+                                                        {procedures.find(p => p.id === linkedAppointment.procedure_id)?.name || '-'}
+                                                        {linkedAppointment.recorded_commission && <span className="block text-xs text-green-600 font-normal">Comissão: R$ {linkedAppointment.recorded_commission}</span>}
+                                                    </div>
+                                                ) : (
+                                                    <select
+                                                        className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                                                        value={selectedProcedureId}
+                                                        onChange={(e) => setSelectedProcedureId(e.target.value)}
+                                                    >
+                                                        <option value="">Selecione...</option>
+                                                        {procedures.map(p => (
+                                                            <option key={p.id} value={p.id}>{p.name} - R$ {p.price}</option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {linkedAppointment.status === 'scheduled' && !isDentist && (
+                                            // TODO: Allow dentist to complete? Requirement says: "Pode editar agendamentos futuros".
+                                            // So Dentist CAN complete 'scheduled' ones.
+                                            // But blocked if already 'completed' (handled by !scheduled check above).
+                                            // So we should remove !isDentist check here if they are allowed to finish.
+                                            // User said: "NÃO PODE editar agendamentos com status completed". It implies they CAN edit future (scheduled).
+                                            // So I will REMOVE !isDentist check.
+                                            <div className="grid grid-cols-2 gap-2 pt-2">
+                                                <button onClick={handleComplete} className="bg-green-600 text-white py-2 rounded text-xs font-bold hover:bg-green-700 transition flex items-center justify-center gap-1">
+                                                    <Check size={14} /> Finalizar
+                                                </button>
+                                                <button onClick={handleNoShow} className="bg-red-100 text-red-700 py-2 rounded text-xs font-bold hover:bg-red-200 transition flex items-center justify-center gap-1">
+                                                    <UserIcon size={14} /> Faltou
+                                                </button>
+                                            </div>
+                                        )}
+                                        {/* Re-adding the block for Dentist to complete if I removed the check above. Logic handles it. */}
+                                        {linkedAppointment.status === 'scheduled' && isDentist && (
+                                            <div className="grid grid-cols-2 gap-2 pt-2">
+                                                <button onClick={handleComplete} className="bg-green-600 text-white py-2 rounded text-xs font-bold hover:bg-green-700 transition flex items-center justify-center gap-1">
+                                                    <Check size={14} /> Finalizar
+                                                </button>
+                                                <button onClick={handleNoShow} className="bg-red-100 text-red-700 py-2 rounded text-xs font-bold hover:bg-red-200 transition flex items-center justify-center gap-1">
+                                                    <UserIcon size={14} /> Faltou
+                                                </button>
+                                            </div>
+                                        )}
+
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded flex items-center gap-2">
+                                            <AlertCircle size={14} /> Evento não vinculado
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-700 mb-1">Vincular Paciente</label>
+                                            <select
+                                                className="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 bg-white"
+                                                value={selectedPatientId}
+                                                onChange={e => setSelectedPatientId(e.target.value)}
+                                            >
+                                                <option value="">Selecione...</option>
+                                                {patients.map(p => (
+                                                    <option key={p.id} value={p.id}>{p.nome}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        {showFinance && (
+                                            <div>
+                                                <label className="block text-xs font-medium text-slate-700 mb-1">Procedimento (Opcional)</label>
+                                                <select
+                                                    className="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 bg-white"
+                                                    value={selectedProcedureId}
+                                                    onChange={e => setSelectedProcedureId(e.target.value)}
+                                                >
+                                                    <option value="">Selecione...</option>
+                                                    {procedures.map(p => (
+                                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )}
+                                        <button
+                                            onClick={handleLinkAppointment}
+                                            className="w-full py-2 bg-indigo-600 text-white rounded text-sm font-medium hover:bg-indigo-700"
+                                        >
+                                            Vincular ao Sistema
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
+
                         <div className="bg-slate-50 p-3 border-t border-slate-100 flex justify-end">
                             <button
                                 onClick={() => setSelectedEvent(null)}
@@ -252,7 +584,9 @@ const CalendarView = () => {
                         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                             <CalendarIcon className="text-[var(--primary)] text-2xl" /> Agenda
                         </h1>
-                        <p className="text-slate-500">Visualize seus compromissos do Google Agenda</p>
+                        <p className="text-slate-500">
+                            {isDentist ? 'Minha Agenda' : 'Visualize seus compromissos do Google Agenda'}
+                        </p>
                     </div>
 
                     {!isConnected ? (
@@ -290,7 +624,7 @@ const CalendarView = () => {
                     )}
                 </div>
 
-                {isConnected && (
+                {isConnected && !isSimpleMode && !isDentist && (
                     <div className="flex flex-wrap items-center gap-4 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
                         <div className="flex items-center gap-2 border-r border-slate-200 pr-4 mr-2">
                             <span className="text-sm font-medium text-slate-600">Ir para:</span>
@@ -363,6 +697,8 @@ const CalendarView = () => {
         </div>
     );
 };
+
+
 
 export const Agenda = () => {
     const GOOGLE_CLIENT_ID = (import.meta as any).env.VITE_GOOGLE_CLIENT_ID;

@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Search, Phone, Calendar, ArrowLeft, FileText, Activity, Pill, DollarSign, Clock, Stethoscope, Trash2, Edit, MessageCircle, Paperclip, Printer } from 'lucide-react';
+import { Plus, Search, Phone, Calendar, ArrowLeft, FileText, Activity, Pill, DollarSign, Clock, Stethoscope, Trash2, Edit, MessageCircle, Paperclip, Printer, User } from 'lucide-react';
 import type { Paciente, Consulta } from '../types/db';
 import { format, parseISO, differenceInYears } from 'date-fns';
 import { PatientAttachments } from '../components/PatientAttachments';
 import { PatientPrintView, printPatientRecord } from '../components/PatientPrintView';
 
 export const Pacientes = () => {
-    const { user } = useAuth();
+    const { user, profile } = useAuth(); // Destructure profile
 
     // View State: 'list' | 'details'
     const [view, setView] = useState<'list' | 'details'>('list');
@@ -18,6 +18,7 @@ export const Pacientes = () => {
     // Data State
     const [pacientes, setPacientes] = useState<Paciente[]>([]);
     const [consultas, setConsultas] = useState<Consulta[]>([]);
+    const [teamNames, setTeamNames] = useState<Record<string, string>>({}); // ID -> Username
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -38,8 +39,30 @@ export const Pacientes = () => {
     });
 
     useEffect(() => {
-        if (user) fetchPacientes();
+        if (user) {
+            fetchPacientes();
+            fetchTeamNames();
+        }
     }, [user]);
+
+    // ...
+
+    const fetchTeamNames = async () => {
+        try {
+            // Fetch profiles to map IDs to Names
+            // RLS should allow visible profiles (Team)
+            const { data } = await supabase.from('profiles').select('id, username');
+            if (data) {
+                const map: Record<string, string> = {};
+                data.forEach((p: any) => {
+                    map[p.id] = p.username || 'Sem Nome';
+                });
+                setTeamNames(map);
+            }
+        } catch (err) {
+            console.error('Error fetching team names:', err);
+        }
+    };
 
     useEffect(() => {
         if (selectedPaciente) fetchConsultas(selectedPaciente.id);
@@ -50,6 +73,9 @@ export const Pacientes = () => {
             const { data, error } = await supabase
                 .from('pacientes')
                 .select('*')
+                // RLS filters this automatically, but explicitly:
+                // .or(`owner_id.eq.${user?.id},owner_id.eq.${profile?.owner_id}`)
+                // Trusting RLS here for simplicity
                 .order('nome');
             if (error) throw error;
             setPacientes(data || []);
@@ -95,6 +121,7 @@ export const Pacientes = () => {
                 // CREATE
                 const { data, error } = await supabase.from('pacientes').insert({
                     user_id: user.id,
+                    owner_id: profile?.owner_id || user.id, // Assign to Clinic Owner (or self if owner)
                     ...novoPaciente,
                     data_nascimento: novoPaciente.data_nascimento || null
                 }).select().single();
@@ -164,6 +191,7 @@ export const Pacientes = () => {
 
             const { data, error } = await supabase.from('consultas').insert({
                 user_id: user.id,
+                owner_id: profile?.owner_id || user.id, // THE FIX
                 paciente_id: selectedPaciente.id,
                 ...novaConsulta,
                 data_consulta: dataConsultaSafe,
@@ -319,6 +347,13 @@ export const Pacientes = () => {
                                         </div>
                                         <div>
                                             <h3 className="font-bold text-slate-900 group-hover:text-[var(--primary)] transition-colors">{paciente.nome}</h3>
+
+                                            {/* Registered By */}
+                                            <div className="text-xs text-slate-400 flex items-center gap-1 mb-1">
+                                                <User size={10} />
+                                                <span>Profissional: {teamNames[paciente.user_id] || 'Carregando...'}</span>
+                                            </div>
+
                                             <div className="flex items-center gap-3 text-sm text-slate-500">
                                                 {paciente.telefone && (
                                                     <span className="flex items-center gap-1"><Phone size={12} /> {paciente.telefone}</span>
@@ -547,7 +582,7 @@ export const Pacientes = () => {
 
                                                 {/* Card */}
                                                 <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                                                    <div className="flex items-center justify-between mb-2">
+                                                    <div className="flex items-center justify-between mb-1">
                                                         <time className="font-bold text-slate-900 flex items-center gap-1">
                                                             {format(parseISO(consulta.data_consulta), 'dd/MM/yyyy')}
                                                         </time>
@@ -566,6 +601,12 @@ export const Pacientes = () => {
                                                                 <Trash2 size={14} />
                                                             </button>
                                                         </div>
+                                                    </div>
+
+                                                    {/* Professional Name */}
+                                                    <div className="text-xs text-slate-400 mb-3 flex items-center gap-1">
+                                                        <User size={12} />
+                                                        <span>Dentista: <span className="font-medium text-slate-600">{teamNames[consulta.user_id] || 'Desconhecido'}</span></span>
                                                     </div>
 
                                                     <div className="space-y-2 text-sm">

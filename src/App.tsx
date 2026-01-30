@@ -1,7 +1,10 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Layout } from './components/Layout';
-import { Dashboard, Custos, Pacientes, Login, Register, Configuracoes, SubscriptionExpired, Agenda, AdminDashboard } from './pages';
+import { RequireRole } from './components/RequireRole';
+import { Dashboard, Custos, Pacientes, Login, Register, Configuracoes, SubscriptionExpired, Agenda, AdminDashboard, Procedimentos, Financeiro, Equipe, Comissoes, JoinClinic } from './pages';
+
+
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Components to protect routes
@@ -37,6 +40,16 @@ const RequireAdmin = ({ children }: { children: React.ReactNode }) => {
 };
 
 // Redirect to dashboard if already logged in
+const RequireFeatureFlag = ({ flag, children }: { flag: string, children: React.ReactNode }) => {
+  const { profile, loading } = useAuth();
+  if (loading) return <div>Checking Permissions...</div>;
+  if (!profile?.plan_config?.[flag]) {
+    return <Navigate to="/" replace />;
+  }
+  return children;
+};
+
+// Redirect to dashboard if already logged in
 const RedirectIfAuthenticated = ({ children }: { children: React.ReactNode }) => {
   const { session, loading } = useAuth();
   if (loading) return <div className="min-h-screen flex items-center justify-center">Carregando...</div>;
@@ -57,11 +70,15 @@ function App() {
             </RedirectIfAuthenticated>
           } />
 
+          {/* ... existing routes ... */}
+
           <Route path="/register" element={
             <RedirectIfAuthenticated>
               <Register />
             </RedirectIfAuthenticated>
           } />
+
+          <Route path="/entrar/:token" element={<JoinClinic />} />
 
           <Route path="/subscription-expired" element={
             <RequireAuth ignoreSubscription={true}>
@@ -75,10 +92,35 @@ function App() {
             </RequireAuth>
           }>
             <Route index element={<Dashboard />} />
-            <Route path="custos" element={<Custos />} />
+            <Route path="custos" element={
+              <RequireRole allowedRoles={['clinic_owner']}>
+                <Custos />
+              </RequireRole>
+            } />
+            <Route path="financeiro" element={
+              <RequireRole allowedRoles={['clinic_owner']} requireFinancial={true}>
+                <Financeiro />
+              </RequireRole>
+            } />
+            <Route path="procedimentos" element={
+              <RequireRole allowedRoles={['clinic_owner']}>
+                <Procedimentos />
+              </RequireRole>
+            } />
+            <Route path="comissoes" element={
+              <RequireRole allowedRoles={['clinic_owner']}>
+                <Comissoes />
+              </RequireRole>
+            } />
+            <Route path="equipe" element={
+              <RequireRole allowedRoles={['clinic_owner']}>
+                <Equipe />
+              </RequireRole>
+            } />
             <Route path="pacientes" element={<Pacientes />} />
             <Route path="agenda" element={<Agenda />} />
             <Route path="configuracoes" element={<Configuracoes />} />
+            <Route path="procedimentos" element={<Procedimentos />} />
             <Route path="admin" element={
               <RequireAdmin>
                 <AdminDashboard />

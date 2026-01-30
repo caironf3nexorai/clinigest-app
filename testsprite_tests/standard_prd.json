@@ -1,0 +1,103 @@
+{
+  "meta": {
+    "project": "Sistema de Gestão de Clínica",
+    "date": "2026-01-21",
+    "prepared_by": "Software Development Manager"
+  },
+  "product_overview": "Sistema web de gestão para clínicas e consultórios, fornecendo funcionalidades para gerenciar agendamentos, pacientes, finanças e configurações dentro de uma plataforma SaaS intuitiva e eficiente.",
+  "core_goals": [
+    "Fornecer autenticação segura com suporte a e-mail/senha e Google OAuth.",
+    "Permitir gerenciamento completo de agendamentos em um calendário interativo.",
+    "Facilitar o cadastro e gestão de pacientes e seus históricos de atendimento.",
+    "Oferecer controle financeiro com registro de custos e categorização.",
+    "Apresentar dashboards informativos para usuários e administradores.",
+    "Disponibilizar configurações personalizáveis para usuários e clínicas."
+  ],
+  "key_features": [
+    "Autenticação e controle de acesso com verificação de assinatura.",
+    "Interface de calendário interativo para agendamento e gestão de compromissos.",
+    "Cadastro, listagem e visualização detalhada de pacientes.",
+    "Gerenciamento financeiro com lançamento e categorização de despesas.",
+    "Dashboards para visualização de métricas operacionais e financeiras.",
+    "Painel administrativo para gestão de usuários e métricas globais.",
+    "Configurações para perfil do usuário e perfil da clínica."
+  ],
+  "user_flow_summary": [
+    "Usuário acessa o sistema e realiza login via e-mail/senha ou Google OAuth.",
+    "Usuário navega para o dashboard para visualizar métricas gerais.",
+    "Usuário acessa a agenda para visualizar, criar ou editar compromissos.",
+    "Usuário gerencia cadastro de pacientes, adicionando ou consultando informações.",
+    "Usuário registra despesas e visualiza relatórios financeiros.",
+    "Administrador acessa painel para gerenciar usuários e configurações globais.",
+    "Usuário atualiza configurações pessoais e da clínica conforme necessário."
+  ],
+  "validation_criteria": [
+    "Login e registro funcionam com sucesso usando e-mail/senha e Google OAuth.",
+    "Sistema bloqueia acesso se a assinatura estiver expirada e direciona para tela informativa.",
+    "Agenda exibe corretamente horários livres/ocupados e permite agendamento e edição de compromissos.",
+    "Cadastro de pacientes salva e lista dados corretamente, incluindo histórico implícito.",
+    "Registros financeiros são persistidos, categorizados e exibidos adequadamente.",
+    "Dashboards exibem dados e gráficos conforme esperado para usuários e administradores.",
+    "Configurações atualizam e persistem informações de perfil do usuário e da clínica."
+  ],
+  "code_summary": {
+    "tech_stack": [
+      "TypeScript",
+      "React",
+      "Vite",
+      "Tailwind CSS",
+      "Supabase",
+      "Recharts",
+      "React Big Calendar",
+      "React Router DOM",
+      "Axios"
+    ],
+    "features": [
+      {
+        "name": "Authentication",
+        "description": "User login and registration with email/password and Google OAuth.",
+        "files": [
+          "src/pages/Login.tsx",
+          "src/pages/Register.tsx",
+          "src/pages/SubscriptionExpired.tsx"
+        ]
+      },
+      {
+        "name": "Dashboard",
+        "description": "User and Admin dashboards showing metrics and charts.",
+        "files": [
+          "src/pages/Dashboard.tsx",
+          "src/pages/AdminDashboard.tsx"
+        ]
+      },
+      {
+        "name": "Agenda Management",
+        "description": "Calendar interface for managing appointments.",
+        "files": [
+          "src/pages/Agenda.tsx"
+        ]
+      },
+      {
+        "name": "Patient Management",
+        "description": "List and registration of patients.",
+        "files": [
+          "src/pages/Pacientes.tsx"
+        ]
+      },
+      {
+        "name": "Financial Management",
+        "description": "Tracking costs and expenses.",
+        "files": [
+          "src/pages/Custos.tsx"
+        ]
+      },
+      {
+        "name": "Settings",
+        "description": "User and application configurations.",
+        "files": [
+          "src/pages/Configuracoes.tsx"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,60 @@
+{
+    "tech_stack": [
+        "TypeScript",
+        "React",
+        "Vite",
+        "Tailwind CSS",
+        "Supabase",
+        "Recharts",
+        "React Big Calendar",
+        "React Router DOM",
+        "Axios"
+    ],
+    "features": [
+        {
+            "name": "Authentication",
+            "description": "User login and registration with email/password and Google OAuth.",
+            "files": [
+                "src/pages/Login.tsx",
+                "src/pages/Register.tsx",
+                "src/pages/SubscriptionExpired.tsx"
+            ]
+        },
+        {
+            "name": "Dashboard",
+            "description": "User and Admin dashboards showing metrics and charts.",
+            "files": [
+                "src/pages/Dashboard.tsx",
+                "src/pages/AdminDashboard.tsx"
+            ]
+        },
+        {
+            "name": "Agenda Management",
+            "description": "Calendar interface for managing appointments.",
+            "files": [
+                "src/pages/Agenda.tsx"
+            ]
+        },
+        {
+            "name": "Patient Management",
+            "description": "List and registration of patients.",
+            "files": [
+                "src/pages/Pacientes.tsx"
+            ]
+        },
+        {
+            "name": "Financial Management",
+            "description": "Tracking costs and expenses.",
+            "files": [
+                "src/pages/Custos.tsx"
+            ]
+        },
+        {
+            "name": "Settings",
+            "description": "User and application configurations.",
+            "files": [
+                "src/pages/Configuracoes.tsx"
+            ]
+        }
+    ]
+}

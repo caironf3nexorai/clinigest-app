@@ -1,0 +1,16 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:5173",
+  "executionArgs": {
+    "projectName": "luminescent-sojourner",
+    "projectPath": "c:\\Users\\Cairon Felipe\\.gemini\\antigravity\\playground\\luminescent-sojourner",
+    "testIds": [],
+    "additionalInstruction": "",
+    "envs": {
+      "API_KEY": "sk-user-cmNVcIJyFPKwUigxi8XiqmCyo7iEqSicwmQpuA5n09SruMjnm1DeL0p_gGhMt4ooFnATcN-q7xN1tAjbpK_kazHEUAnihRvQ6ZawXhRSbS6OD77tFvL-NKTVcxyj6_rn8rU"
+    }
+  },
+  "proxy": "http://1191d7be-c914-45d5-8884-ff8268164ee7:HlYKczg6iMyZZAcObI5NBqkZrgoy6Hwq@tun.testsprite.com:8080"
+}

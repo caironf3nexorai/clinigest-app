@@ -7,3 +7,8 @@ export * from './Configuracoes';
 export * from './SubscriptionExpired';
 export * from './Agenda';
 export * from './AdminDashboard';
+export * from './Procedimentos';
+export * from './Financeiro';
+export * from './Equipe';
+export * from './Comissoes';
+export * from './JoinClinic';

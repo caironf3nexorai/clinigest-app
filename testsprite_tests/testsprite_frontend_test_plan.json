@@ -1,0 +1,413 @@
+[
+  {
+    "id": "TC001",
+    "title": "Successful login with valid email and password",
+    "description": "Verify that a user can successfully log in using valid email and password credentials.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page."
+      },
+      {
+        "type": "action",
+        "description": "Input a valid registered email address."
+      },
+      {
+        "type": "action",
+        "description": "Input the correct password for the email."
+      },
+      {
+        "type": "action",
+        "description": "Click on the login button."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that the user is redirected to the dashboard page."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that user-specific metrics are displayed on the dashboard."
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Login failure with invalid credentials",
+    "description": "Verify that login fails when the user provides invalid email or password.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page."
+      },
+      {
+        "type": "action",
+        "description": "Input an invalid or unregistered email address."
+      },
+      {
+        "type": "action",
+        "description": "Input an incorrect password."
+      },
+      {
+        "type": "action",
+        "description": "Click on the login button."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that an error message is displayed indicating invalid login credentials."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that the user remains on the login page."
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Access blocked when subscription is expired",
+    "description": "Verify that users with expired subscriptions cannot access the system and are redirected accordingly.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Attempt to log in with a user whose subscription has expired."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that the system blocks access and redirects to the subscription expiration notification screen."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that navigation to other parts of the system is disabled for this user."
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Display free and occupied time slots correctly on calendar",
+    "description": "Ensure the calendar interface marks free and occupied time slots accurately based on existing appointments.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in and navigate to the agenda management page."
+      },
+      {
+        "type": "action",
+        "description": "View the calendar for a selected day with multiple pre-existing appointments."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that reserved time slots are clearly marked as occupied."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that unreserved time slots are indicated as free and available for scheduling."
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Create new appointment on the calendar",
+    "description": "Verify that a user can create a new appointment in an available time slot within the calendar interface.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the agenda page."
+      },
+      {
+        "type": "action",
+        "description": "Select a free time slot on the calendar to create a new appointment."
+      },
+      {
+        "type": "action",
+        "description": "Fill in required appointment details such as patient, date, time, and reason."
+      },
+      {
+        "type": "action",
+        "description": "Save the appointment."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that the appointment appears on the calendar in the selected time slot."
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Edit existing appointment details",
+    "description": "Verify that an existing appointment can be edited and updated correctly.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the agenda page."
+      },
+      {
+        "type": "action",
+        "description": "Select an existing appointment from the calendar."
+      },
+      {
+        "type": "action",
+        "description": "Modify details such as time, patient, or appointment reason."
+      },
+      {
+        "type": "action",
+        "description": "Save the changes."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that the appointment updates are reflected on the calendar."
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Create new patient record with mandatory information",
+    "description": "Verify that a new patient can be added successfully when all mandatory patient information fields are correctly filled.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the patient management page."
+      },
+      {
+        "type": "action",
+        "description": "Select the option to add a new patient."
+      },
+      {
+        "type": "action",
+        "description": "Fill in mandatory fields such as name, contact information, date of birth."
+      },
+      {
+        "type": "action",
+        "description": "Save the new patient record."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that the new patient appears in the patients list."
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "View detailed patient information including history",
+    "description": "Verify that selecting a patient from the list displays detailed information including medical and appointment history.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the patient management page."
+      },
+      {
+        "type": "action",
+        "description": "Select an existing patient from the list."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that detailed patient data and historical appointments or treatments are displayed."
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Attempt to add patient with missing mandatory fields",
+    "description": "Verify the system prevents adding a patient when mandatory fields are not filled and shows appropriate validation errors.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the patient addition form."
+      },
+      {
+        "type": "action",
+        "description": "Leave mandatory fields empty or with invalid data."
+      },
+      {
+        "type": "action",
+        "description": "Attempt to save the patient record."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify error messages are displayed indicating which mandatory fields need to be completed."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that the patient is not added to the list."
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Record a new financial expense with category",
+    "description": "Verify that users can record a new financial expense and assign it to the correct category.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the financial management page."
+      },
+      {
+        "type": "action",
+        "description": "Select the option to add a new expense."
+      },
+      {
+        "type": "action",
+        "description": "Fill in expense details including amount, description, date, and category."
+      },
+      {
+        "type": "action",
+        "description": "Save the expense record."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that the new expense appears in the list with correct details."
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "View financial reports and categorized expense summaries",
+    "description": "Verify that the financial dashboard displays accurate expense reports with correct categorization and summaries.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the financial reports section."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that expenses are grouped correctly by category."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that expense totals and charts reflect accurate data."
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Update user personal settings successfully",
+    "description": "Verify that users can update their personal profile information in settings and changes persist after saving.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the user settings page."
+      },
+      {
+        "type": "action",
+        "description": "Modify personal profile fields such as name, contact info, or password."
+      },
+      {
+        "type": "action",
+        "description": "Save the changes."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that the changes are saved and reflected in the user profile."
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Update clinic profile settings with validation",
+    "description": "Verify that clinic profile settings can be updated with correct validation and persistence.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to clinic settings page."
+      },
+      {
+        "type": "action",
+        "description": "Modify clinic details such as name, address, contact, and custom configurations."
+      },
+      {
+        "type": "action",
+        "description": "Save updates."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that the clinic profile updates are saved and correctly displayed."
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "Prevent saving clinic settings with invalid data",
+    "description": "Verify that attempting to save invalid clinic profile data (e.g. empty required fields) results in validation errors and no data persistence.",
+    "category": "error handling",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Access clinic profile settings."
+      },
+      {
+        "type": "action",
+        "description": "Clear or input invalid values in mandatory fields."
+      },
+      {
+        "type": "action",
+        "description": "Attempt to save the profile."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify validation error messages indicating missing or invalid fields."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that no changes are saved."
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Administrator manages user accounts",
+    "description": "Verify that an administrator can access the admin panel and perform user management actions such as viewing user list and disabling users.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login as administrator."
+      },
+      {
+        "type": "action",
+        "description": "Navigate to the admin dashboard."
+      },
+      {
+        "type": "action",
+        "description": "Access the user management section."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that a list of users is displayed."
+      },
+      {
+        "type": "action",
+        "description": "Select a user and disable the user account."
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that the user's account status changes to disabled."
+      }
+    ]
+  }
+]
