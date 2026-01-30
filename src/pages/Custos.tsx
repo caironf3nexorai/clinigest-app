@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Calculator } from '../components/Calculator';
-import { Plus, Calculator as CalcIcon, Trash2, Calendar, DollarSign, Tag, Clock, Edit, Save } from 'lucide-react';
+import { Plus, Calculator as CalcIcon, Trash2, Calendar, DollarSign, Tag, Clock, Edit, Save, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import type { Custo } from '../types/db';
-import { format, isAfter, parseISO } from 'date-fns';
+import { format, isAfter, parseISO, addMonths, subMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export const Custos = () => {
@@ -12,6 +12,7 @@ export const Custos = () => {
     const [custos, setCustos] = useState<Custo[]>([]);
     const [loading, setLoading] = useState(true);
     const [showCalculator, setShowCalculator] = useState(false);
+    const [currentDate, setCurrentDate] = useState(new Date());
 
     // Form State
     const [titulo, setTitulo] = useState('');
@@ -37,15 +38,8 @@ export const Custos = () => {
 
             if (error) throw error;
 
-            // Filter locally for "Soft Delete" logic if needed, 
-            // but let's show all valid ones or future expirations
-            const now = new Date();
-            const activeCustos = data?.filter(custo => {
-                if (!custo.data_validade) return true; // No expiration = keep
-                return isAfter(parseISO(custo.data_validade), now); // Keep if valid > now
-            });
-
-            setCustos(activeCustos || []);
+            if (error) throw error;
+            setCustos(data || []);
         } catch (error) {
             console.error('Erro ao buscar custos:', error);
         } finally {
@@ -134,7 +128,33 @@ export const Custos = () => {
         setValor(finalValue.toFixed(2));
     };
 
-    const totalCustos = custos.reduce((acc, curr) => acc + Number(curr.valor), 0);
+    const handlePrevMonth = () => setCurrentDate(curr => subMonths(curr, 1));
+    const handleNextMonth = () => setCurrentDate(curr => addMonths(curr, 1));
+
+    const filteredCustos = custos.filter(custo => {
+        const start = startOfMonth(currentDate);
+        const end = endOfMonth(currentDate);
+        return isWithinInterval(parseISO(custo.data_pagamento), { start, end });
+    });
+
+    const totalCustos = filteredCustos.reduce((acc, curr) => acc + Number(curr.valor), 0);
+
+    const handleTogglePago = async (custo: Custo) => {
+        try {
+            const novoStatus = !custo.pago;
+            const { error } = await supabase
+                .from('custos')
+                .update({ pago: novoStatus })
+                .eq('id', custo.id);
+
+            if (error) throw error;
+
+            // Local update
+            setCustos(curr => curr.map(c => c.id === custo.id ? { ...c, pago: novoStatus } : c));
+        } catch (error) {
+            console.error('Erro ao atualizar', error);
+        }
+    };
 
     return (
         <div className="max-w-5xl mx-auto pb-20">
@@ -152,7 +172,7 @@ export const Custos = () => {
                     <p className="text-slate-500">Controle financeiro mensal da clínica</p>
                 </div>
                 <div className="bg-white px-6 py-3 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-                    <span className="text-sm font-medium text-slate-500">Total Mensal</span>
+                    <span className="text-sm font-medium text-slate-500">Total {format(currentDate, 'MMMM', { locale: ptBR })}</span>
                     <span className="text-2xl font-bold text-slate-900">R$ {totalCustos.toFixed(2)}</span>
                 </div>
             </div>
@@ -267,18 +287,41 @@ export const Custos = () => {
 
                 {/* List Section */}
                 <div className="lg:col-span-2 space-y-4">
+                    {/* Month Navigator */}
+                    <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-slate-200 mb-4">
+                        <button onClick={handlePrevMonth} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-[var(--primary)] transition-colors">
+                            <ChevronLeft size={20} />
+                        </button>
+                        <span className="font-bold text-slate-700 capitalize flex items-center gap-2">
+                            <Calendar size={18} className="text-[var(--primary)]" />
+                            {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
+                        </span>
+                        <button onClick={handleNextMonth} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-[var(--primary)] transition-colors">
+                            <ChevronRight size={20} />
+                        </button>
+                    </div>
+
                     {loading ? (
                         <p className="text-center text-slate-500 py-10">Carregando despesas...</p>
-                    ) : custos.length === 0 ? (
+                    ) : filteredCustos.length === 0 ? (
                         <div className="text-center py-16 bg-white rounded-xl border border-dashed border-slate-300">
                             <Tag className="mx-auto text-slate-300 mb-2" size={48} />
-                            <p className="text-slate-500 font-medium">Nenhuma despesa lançada.</p>
-                            <p className="text-sm text-slate-400">Adicione seus custos mensais ao lado.</p>
+                            <p className="text-slate-500 font-medium">Nenhuma despesa neste mês.</p>
+                            <p className="text-sm text-slate-400">Verifique outros meses ou adicione um novo.</p>
                         </div>
                     ) : (
-                        custos.map((custo) => (
-                            <div key={custo.id} className={`group bg-white p-4 rounded-xl border shadow-sm hover:shadow-md transition-all flex items-center justify-between ${editingId === custo.id ? 'border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50/10' : 'border-slate-200'}`}>
+                        filteredCustos.map((custo) => (
+                            <div key={custo.id} className={`group bg-white p-4 rounded-xl border shadow-sm hover:shadow-md transition-all flex items-center justify-between ${editingId === custo.id ? 'border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50/10' : 'border-slate-200'} ${custo.pago ? 'opacity-75 bg-slate-50' : ''}`}>
                                 <div className="flex items-center gap-4">
+                                    {/* Payment Toggle */}
+                                    <button
+                                        onClick={() => handleTogglePago(custo)}
+                                        className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all ${custo.pago ? 'bg-green-100 border-green-300 text-green-600' : 'bg-white border-slate-300 text-slate-200 hover:text-green-500 hover:border-green-400'}`}
+                                        title={custo.pago ? "Pago! Clique para desfazer" : "Confirmar Pagamento"}
+                                    >
+                                        <Check size={16} className={custo.pago ? "opacity-100" : "opacity-0 hover:opacity-100"} />
+                                    </button>
+
                                     <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${custo.categoria === 'Fixa'
                                         ? 'bg-blue-50 text-blue-600'
                                         : 'bg-orange-50 text-orange-600'

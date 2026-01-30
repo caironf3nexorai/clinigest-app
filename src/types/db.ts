@@ -40,6 +40,7 @@ export type Custo = {
     data_pagamento: string;
     data_validade?: string;
     recorrente: boolean;
+    pago?: boolean;
 };
 
 export type Paciente = {
