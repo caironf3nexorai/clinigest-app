@@ -5,7 +5,7 @@ import { ptBR } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
-import { Calendar as CalendarIcon, LogIn, LogOut, RefreshCw, X, MapPin, AlignLeft, Clock, Check, User as UserIcon, AlertCircle, DollarSign, Loader2 } from 'lucide-react';
+import { Calendar as CalendarIcon, LogIn, LogOut, RefreshCw, X, MapPin, AlignLeft, Clock, Check, User as UserIcon, AlertCircle, DollarSign, Loader2, Stethoscope, Save } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Procedure, Paciente, Consulta, AppointmentStatus } from '../types/db';
 import { useAuth } from '../contexts/AuthContext';
@@ -52,6 +52,15 @@ const CalendarView = () => {
     // Form State for Modal
     const [selectedProcedureId, setSelectedProcedureId] = useState('');
     const [selectedPatientId, setSelectedPatientId] = useState('');
+    const [showCompletionModal, setShowCompletionModal] = useState(false);
+    const [completionForm, setCompletionForm] = useState({
+        queixa: '',
+        evolucao: '',
+        medicamentos: '',
+        procedure_id: '',
+        valor: '',
+        payment_method: 'none'
+    });
 
     // Mapped State
     const [dentistMap, setDentistMap] = useState<Record<string, string>>({}); // CalendarID -> UserID
@@ -337,7 +346,8 @@ const CalendarView = () => {
             evolucao: linkedAppointment.evolucao || '',
             medicamentos: linkedAppointment.medicamentos || '',
             procedure_id: selectedProcedureId || linkedAppointment.procedure_id || '',
-            valor: valor.toString()
+            valor: valor.toString(),
+            payment_method: 'none'
         });
 
         setShowCompletionModal(true);
@@ -667,6 +677,21 @@ const CalendarView = () => {
                                         {procedures.map(p => (
                                             <option key={p.id} value={p.id}>{p.name}</option>
                                         ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Forma de Pagamento</label>
+                                    <select
+                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-white"
+                                        value={completionForm.payment_method || 'none'}
+                                        onChange={e => setCompletionForm({ ...completionForm, payment_method: e.target.value })}
+                                        required
+                                    >
+                                        <option value="none">Selecione...</option>
+                                        <option value="money">Dinheiro</option>
+                                        <option value="card">Cartão</option>
+                                        <option value="pix">Pix</option>
+                                        <option value="warranty">Garantia / Retrabalho (R$ 0,00)</option>
                                     </select>
                                 </div>
                                 <div>

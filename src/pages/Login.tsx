@@ -67,6 +67,7 @@ export const Login = () => {
                     </div>
                 )}
 
+                {/* Google Login Disabled by User Preference
                 <button
                     onClick={async () => {
                         await supabase.auth.signInWithOAuth({
@@ -112,6 +113,7 @@ export const Login = () => {
                         <span className="px-2 bg-[var(--surface)] text-[var(--text-muted)]">Ou continue com email</span>
                     </div>
                 </div>
+                */}
 
                 <form className="space-y-4" onSubmit={handleLogin}>
                     <div>
@@ -136,15 +138,22 @@ export const Login = () => {
                         />
                     </div>
 
+                    <div className="flex justify-end pt-1">
+                        <Link to="/forgot-password" className="text-xs text-[var(--primary)] hover:underline">
+                            Esqueceu a senha?
+                        </Link>
+                    </div>
+
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-[var(--primary)] text-white py-2 rounded-lg font-medium hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50"
+                        className="w-full bg-[var(--primary)] text-white p-3 rounded-lg font-bold hover:brightness-110 transition-all shadow-lg shadow-[var(--primary)]/20 disabled:opacity-50"
                     >
-                        {loading ? 'Carregando...' : 'Entrar'}
+                        {loading ? 'Entrando...' : 'Entrar na Plataforma'}
                     </button>
                 </form>
 
+                {/* Public Registration Disabled
                 <div className="mt-4 pt-4 border-t border-[var(--border)] text-center">
                     <p className="text-sm text-[var(--text-muted)] mb-2">Não tem conta?</p>
                     <Link
@@ -154,6 +163,7 @@ export const Login = () => {
                         Criar nova conta
                     </Link>
                 </div>
+                */}
             </div>
         </div>
     );

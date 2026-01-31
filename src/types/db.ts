@@ -72,6 +72,7 @@ export type Consulta = {
     procedure?: Procedure;
     medicamentos?: string;
     valor_consulta?: number; // Cache of price at time of booking
+    payment_method?: 'money' | 'card' | 'pix' | 'warranty' | 'none';
 
     // Status & Commission
     status: AppointmentStatus;

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { Layout } from './components/Layout';
 import { RequireRole } from './components/RequireRole';
 import { Dashboard, Custos, Pacientes, Login, Register, Configuracoes, SubscriptionExpired, Agenda, AdminDashboard, Procedimentos, Financeiro, Equipe, Comissoes, JoinClinic } from './pages';
+import { ForgotPassword } from './pages/ForgotPassword';
 
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -67,6 +68,12 @@ function App() {
           <Route path="/login" element={
             <RedirectIfAuthenticated>
               <Login />
+            </RedirectIfAuthenticated>
+          } />
+
+          <Route path="/forgot-password" element={
+            <RedirectIfAuthenticated>
+              <ForgotPassword />
             </RedirectIfAuthenticated>
           } />
 

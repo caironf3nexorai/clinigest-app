@@ -42,10 +42,8 @@ export const Layout = () => {
 
     // Owner / Super Admin Menu Logic
     if (isOwner) {
-        // [PRO ONLY] Financeiro (Full Dashboard)
-        if (!isSimpleMode) {
-            navItems.splice(1, 0, { to: '/financeiro', icon: Wallet, label: 'Financeiro' });
-        }
+        // [ALL PLANS] Financeiro (Owner Only)
+        navItems.splice(1, 0, { to: '/financeiro', icon: Wallet, label: 'Financeiro' });
 
         // [ALL PLANS] Despesas
         navItems.push({ to: '/custos', icon: DollarSign, label: 'Despesas' });

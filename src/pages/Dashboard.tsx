@@ -11,10 +11,13 @@ export const Dashboard = () => {
     const { user } = useAuth();
     const [stats, setStats] = useState({
         investimento: 0,
-        faturamento: 0,
+        faturamento_real: 0, // Realized (Completed)
+        faturamento_previsto: 0, // Scheduled
+        caixa_dia: 0, // Today's Realized
         atendimentos: 0,
         lucro: 0
     });
+
     const [chartData, setChartData] = useState<any[]>([]);
     const [recentPatients, setRecentPatients] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -28,8 +31,9 @@ export const Dashboard = () => {
 
         try {
             const today = new Date();
-            const start = startOfMonth(today);
-            const end = endOfMonth(today);
+            const startStr = format(startOfMonth(today), 'yyyy-MM-dd');
+            const endStr = format(endOfMonth(today), 'yyyy-MM-dd');
+            const todayStr = format(today, 'yyyy-MM-dd');
 
             // 1. Fetch Data
             const [custosResponse, consultasResponse, pacientesResponse] = await Promise.all([
@@ -45,34 +49,45 @@ export const Dashboard = () => {
             const custosData = custosResponse.data || [];
             const consultasData = consultasResponse.data || [];
 
-            // 2. Filter for Current Month
-            const monthCustos = custosData.filter(c =>
-                isWithinInterval(parseISO(c.data_pagamento), { start, end })
-            );
-
-            const monthConsultas = consultasData.filter(c =>
-                isWithinInterval(parseISO(c.data_consulta), { start, end })
-            );
+            // 2. Filter for Current Month & Today
+            const monthCustos = custosData.filter(c => c.data_pagamento >= startStr && c.data_pagamento <= endStr);
+            const monthConsultas = consultasData.filter(c => c.data_consulta.startsWith(startStr.substring(0, 7))); // Simple YYYY-MM match
 
             // 3. Calculate Totals
             const totalCustos = monthCustos.reduce((acc, curr) => acc + Number(curr.valor), 0);
-            const totalFaturamento = monthConsultas.reduce((acc, curr) => acc + Number(curr.valor_consulta || 0), 0);
+
+            // Monthly Realized (Status = Completed)
+            const totalFaturadoReal = monthConsultas
+                .filter(c => c.status === 'completed')
+                .reduce((acc, curr) => acc + Number(curr.valor_consulta || 0), 0);
+
+            // Monthly Predicted (All active statuses)
+            const totalFaturadoPrevisto = monthConsultas
+                .filter(c => c.status !== 'cancelled' && c.status !== 'no_show')
+                .reduce((acc, curr) => acc + Number(curr.valor_consulta || 0), 0);
+
+            // Daily Cash (Today + Completed)
+            const caixaDia = consultasData
+                .filter(c => c.data_consulta.startsWith(todayStr) && c.status === 'completed')
+                .reduce((acc, curr) => acc + Number(curr.valor_consulta || 0), 0);
 
             setStats({
                 investimento: totalCustos,
-                faturamento: totalFaturamento,
-                atendimentos: monthConsultas.length,
-                lucro: totalFaturamento - totalCustos
+                faturamento_real: totalFaturadoReal,
+                faturamento_previsto: totalFaturadoPrevisto,
+                caixa_dia: caixaDia,
+                atendimentos: monthConsultas.filter(c => c.status === 'completed').length,
+                lucro: totalFaturadoReal - totalCustos
             });
 
             setRecentPatients(pacientesResponse.data || []);
 
             // 4. Prepare Chart Data (Day by Day)
-            const days = eachDayOfInterval({ start, end });
+            const days = eachDayOfInterval({ start: parseISO(startStr), end: parseISO(endStr) });
             const chart = days.map(day => {
                 const dateStr = format(day, 'yyyy-MM-dd');
                 const dayRevenue = monthConsultas
-                    .filter(c => c.data_consulta.startsWith(dateStr))
+                    .filter(c => c.data_consulta.startsWith(dateStr) && c.status === 'completed')
                     .reduce((acc, c) => acc + Number(c.valor_consulta || 0), 0);
 
                 const dayCost = monthCustos
@@ -105,45 +120,65 @@ export const Dashboard = () => {
                     <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
                     <p className="text-slate-500">Resumo financeiro de {format(new Date(), 'MMMM', { locale: ptBR })}</p>
                 </div>
-                <div className="text-sm bg-white border border-slate-200 px-3 py-1 rounded-lg text-slate-500 capitalize">
-                    {format(new Date(), 'MMMM yyyy', { locale: ptBR })}
+                <div className="flex gap-2">
+                    <Link to="/financeiro" className="text-sm bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg border border-indigo-100 font-medium hover:bg-indigo-100 transition-colors">
+                        Ver Faturamento Detalhado
+                    </Link>
                 </div>
             </div>
 
             {/* Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-transform hover:-translate-y-1">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><TrendingUp size={20} /></div>
-                        <span className="flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full"><ArrowUpRight size={12} className="mr-1" />Receita</span>
+                {/* 1. Caixa Do Dia */}
+                <Link to="/financeiro" className="block">
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-transform hover:-translate-y-1 hover:shadow-md cursor-pointer group">
+                        <div className="flex justify-between items-start mb-4">
+                            <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg group-hover:bg-emerald-200 transition-colors"><DollarSign size={20} /></div>
+                            <span className="flex items-center text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full uppercase tracking-wide">Hoje</span>
+                        </div>
+                        <p className="text-slate-500 text-sm font-medium">Caixa Diário</p>
+                        <h3 className="text-2xl font-bold text-slate-900 mt-1">{loading ? '...' : formatCurrency(stats.caixa_dia)}</h3>
+                        <p className="text-xs text-slate-400 mt-1">Realizado hoje</p>
                     </div>
-                    <p className="text-slate-500 text-sm font-medium">Faturamento</p>
-                    <h3 className="text-2xl font-bold text-slate-900 mt-1">{loading ? '...' : formatCurrency(stats.faturamento)}</h3>
-                </div>
+                </Link>
 
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-transform hover:-translate-y-1">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="p-2 bg-rose-50 text-rose-600 rounded-lg"><Wallet size={20} /></div>
-                        <span className="flex items-center text-xs font-medium text-rose-600 bg-rose-50 px-2 py-1 rounded-full"><ArrowDownRight size={12} className="mr-1" />Despesa</span>
+                {/* 2. Faturamento Mês */}
+                <Link to="/financeiro" className="block">
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-transform hover:-translate-y-1 hover:shadow-md cursor-pointer group">
+                        <div className="flex justify-between items-start mb-4">
+                            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-indigo-100 transition-colors"><TrendingUp size={20} /></div>
+                            <span className="flex items-center text-xs font-medium text-slate-600 bg-slate-50 px-2 py-1 rounded-full">Mensal</span>
+                        </div>
+                        <p className="text-slate-500 text-sm font-medium">Receita Realizada</p>
+                        <h3 className="text-2xl font-bold text-slate-900 mt-1">{loading ? '...' : formatCurrency(stats.faturamento_real)}</h3>
+                        <div className="flex items-center gap-1 mt-1">
+                            <span className="text-xs text-slate-400">Previsto: </span>
+                            <span className="text-xs font-medium text-slate-600">{formatCurrency(stats.faturamento_previsto)}</span>
+                        </div>
                     </div>
-                    <p className="text-slate-500 text-sm font-medium">Investimento</p>
-                    <h3 className="text-2xl font-bold text-slate-900 mt-1">{loading ? '...' : formatCurrency(stats.investimento)}</h3>
-                </div>
+                </Link>
 
+
+                {/* 3. Despesas */}
+                <Link to="/custos" className="block">
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-transform hover:-translate-y-1 hover:shadow-md cursor-pointer group">
+                        <div className="flex justify-between items-start mb-4">
+                            <div className="p-2 bg-rose-50 text-rose-600 rounded-lg group-hover:bg-rose-100 transition-colors"><Wallet size={20} /></div>
+                            <span className="flex items-center text-xs font-medium text-rose-600 bg-rose-50 px-2 py-1 rounded-full"><ArrowDownRight size={12} className="mr-1" />Saídas</span>
+                        </div>
+                        <p className="text-slate-500 text-sm font-medium">Despesas Pagas</p>
+                        <h3 className="text-2xl font-bold text-slate-900 mt-1">{loading ? '...' : formatCurrency(stats.investimento)}</h3>
+                    </div>
+                </Link>
+
+                {/* 4. Lucro */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-transform hover:-translate-y-1">
                     <div className="flex justify-between items-start mb-4">
-                        <div className={`p-2 rounded-lg ${stats.lucro >= 0 ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}><DollarSign size={20} /></div>
+                        <div className={`p-2 rounded-lg ${stats.lucro >= 0 ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}><ArrowUpRight size={20} /></div>
                     </div>
                     <p className="text-slate-500 text-sm font-medium">Saldo Líquido</p>
                     <h3 className={`text-2xl font-bold mt-1 ${stats.lucro >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>{loading ? '...' : formatCurrency(stats.lucro)}</h3>
-                </div>
-
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-transform hover:-translate-y-1">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="p-2 bg-slate-100 text-slate-600 rounded-lg"><Users size={20} /></div>
-                    </div>
-                    <p className="text-slate-500 text-sm font-medium">Atendimentos</p>
-                    <h3 className="text-2xl font-bold text-slate-900 mt-1">{loading ? '...' : stats.atendimentos}</h3>
+                    <p className="text-xs text-slate-400 mt-1">Receita Real - Despesas</p>
                 </div>
             </div>
 
