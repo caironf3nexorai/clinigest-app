@@ -24,7 +24,7 @@ export const Layout = () => {
     const { signOut, user, profile, isAdmin } = useAuth();
 
     // 1. Roles & Permissions
-    const role = profile?.role || 'clinic_owner';
+    const role = profile?.role || 'secretary'; // Secure by default (restrictive)
     const isSuperAdmin = role === 'super_admin';
     const isOwner = role === 'clinic_owner' || isSuperAdmin;
 
@@ -48,12 +48,14 @@ export const Layout = () => {
         // [ALL PLANS] Despesas
         navItems.push({ to: '/custos', icon: DollarSign, label: 'Despesas' });
 
-        // [PRO ONLY] Advanced Settings & Teams
+        // [PRO ONLY] Advanced Settings
         if (!isSimpleMode) {
             navItems.push({ to: '/procedimentos', icon: Settings, label: 'Serviços' });
             navItems.push({ to: '/comissoes', icon: FileText, label: 'Comissões' });
-            navItems.push({ to: '/equipe', icon: Briefcase, label: 'Equipe' });
         }
+
+        // [ALL PLANS] Equipe (Limited for Simple)
+        navItems.push({ to: '/equipe', icon: Briefcase, label: 'Equipe' });
     }
 
     // Filter out if Simple Mode hides specific things? (Already handled by Role mostly)
@@ -137,33 +139,38 @@ export const Layout = () => {
             </main>
 
             {/* Mobile Bottom Nav */}
-            <nav className="md:hidden fixed bottom-0 w-full bg-[var(--surface)] border-t border-[var(--border)] flex justify-around p-3 z-10 print:hidden">
+            {/* Mobile Bottom Nav */}
+            <nav className="md:hidden fixed bottom-0 w-full bg-[var(--surface)] border-t border-[var(--border)] flex items-center overflow-x-auto px-4 py-2 gap-6 z-10 print:hidden scrollbar-hide">
                 {navItems.map((item) => (
                     <Link
                         key={item.to}
                         to={item.to}
-                        className={`flex flex-col items-center gap-1 ${location.pathname === item.to ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'
+                        className={`flex flex-col items-center gap-1 min-w-[50px] shrink-0 ${location.pathname === item.to ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'
                             }`}
                     >
-                        <item.icon size={20} />
-                        <span className="text-[10px]">{item.label}</span>
+                        <item.icon size={22} />
+                        <span className="text-[10px] font-medium text-center whitespace-nowrap">{item.label}</span>
                     </Link>
                 ))}
+
+                <div className="w-[1px] h-8 bg-slate-200 shrink-0 mx-1"></div>
+
                 <Link
                     to="/configuracoes"
-                    className={`flex flex-col items-center gap-1 ${location.pathname === '/configuracoes' ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'
+                    className={`flex flex-col items-center gap-1 min-w-[50px] shrink-0 ${location.pathname === '/configuracoes' ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'
                         }`}
                 >
-                    <Settings size={20} />
-                    <span className="text-[10px]">Config</span>
+                    <Settings size={22} />
+                    <span className="text-[10px] font-medium text-center whitespace-nowrap">Config</span>
                 </Link>
+
                 {user && isAdmin && (
                     <Link
                         to="/admin"
-                        className={`flex flex-col items-center gap-1 ${location.pathname === '/admin' ? 'text-indigo-600' : 'text-[var(--text-muted)]'}`}
+                        className={`flex flex-col items-center gap-1 min-w-[50px] shrink-0 ${location.pathname === '/admin' ? 'text-indigo-600' : 'text-[var(--text-muted)]'}`}
                     >
-                        <Shield size={20} />
-                        <span className="text-[10px]">Admin</span>
+                        <Shield size={22} />
+                        <span className="text-[10px] font-medium text-center whitespace-nowrap">Admin</span>
                     </Link>
                 )}
             </nav>

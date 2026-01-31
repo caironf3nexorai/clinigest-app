@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Wallet, TrendingUp, Users, ArrowUpRight, ArrowDownRight, DollarSign, Calendar } from 'lucide-react';
+import { Wallet, TrendingUp, Users, ArrowUpRight, ArrowDownRight, DollarSign, Calendar, Shield } from 'lucide-react';
 import { startOfMonth, endOfMonth, isWithinInterval, parseISO, format, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -113,25 +113,34 @@ export const Dashboard = () => {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
     };
 
+    // 5. Privacy Logic
+    const role = user?.user_metadata?.role || 'secretary'; // Default to restrictive
+    const isOwner = role === 'clinic_owner' || role === 'super_admin';
+    const isSecretary = role === 'secretary';
+
     return (
         <div className="space-y-8 pb-10">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-                    <p className="text-slate-500">Resumo financeiro de {format(new Date(), 'MMMM', { locale: ptBR })}</p>
+                    <p className="text-slate-500">
+                        {isSecretary ? 'Painel Operacional' : `Resumo financeiro de ${format(new Date(), 'MMMM', { locale: ptBR })}`}
+                    </p>
                 </div>
-                <div className="flex gap-2">
-                    <Link to="/financeiro" className="text-sm bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg border border-indigo-100 font-medium hover:bg-indigo-100 transition-colors">
-                        Ver Faturamento Detalhado
-                    </Link>
-                </div>
+                {isOwner && (
+                    <div className="flex gap-2">
+                        <Link to="/financeiro" className="text-sm bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg border border-indigo-100 font-medium hover:bg-indigo-100 transition-colors">
+                            Ver Faturamento Detalhado
+                        </Link>
+                    </div>
+                )}
             </div>
 
-            {/* Cards Grid */}
+            {/* NÍVEL 1: OPERACIONAL (Visível para Todos) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* 1. Caixa Do Dia */}
-                <Link to="/financeiro" className="block">
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-transform hover:-translate-y-1 hover:shadow-md cursor-pointer group">
+                <Link to={isOwner ? "/financeiro" : "#"} className={isOwner ? "block" : "cursor-default block"}>
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-transform hover:-translate-y-1 hover:shadow-md group">
                         <div className="flex justify-between items-start mb-4">
                             <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg group-hover:bg-emerald-200 transition-colors"><DollarSign size={20} /></div>
                             <span className="flex items-center text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full uppercase tracking-wide">Hoje</span>
@@ -142,79 +151,91 @@ export const Dashboard = () => {
                     </div>
                 </Link>
 
-                {/* 2. Faturamento Mês */}
-                <Link to="/financeiro" className="block">
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-transform hover:-translate-y-1 hover:shadow-md cursor-pointer group">
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-indigo-100 transition-colors"><TrendingUp size={20} /></div>
-                            <span className="flex items-center text-xs font-medium text-slate-600 bg-slate-50 px-2 py-1 rounded-full">Mensal</span>
-                        </div>
-                        <p className="text-slate-500 text-sm font-medium">Receita Realizada</p>
-                        <h3 className="text-2xl font-bold text-slate-900 mt-1">{loading ? '...' : formatCurrency(stats.faturamento_real)}</h3>
-                        <div className="flex items-center gap-1 mt-1">
-                            <span className="text-xs text-slate-400">Previsto: </span>
-                            <span className="text-xs font-medium text-slate-600">{formatCurrency(stats.faturamento_previsto)}</span>
-                        </div>
-                    </div>
-                </Link>
-
-
-                {/* 3. Despesas */}
-                <Link to="/custos" className="block">
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-transform hover:-translate-y-1 hover:shadow-md cursor-pointer group">
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="p-2 bg-rose-50 text-rose-600 rounded-lg group-hover:bg-rose-100 transition-colors"><Wallet size={20} /></div>
-                            <span className="flex items-center text-xs font-medium text-rose-600 bg-rose-50 px-2 py-1 rounded-full"><ArrowDownRight size={12} className="mr-1" />Saídas</span>
-                        </div>
-                        <p className="text-slate-500 text-sm font-medium">Despesas Pagas</p>
-                        <h3 className="text-2xl font-bold text-slate-900 mt-1">{loading ? '...' : formatCurrency(stats.investimento)}</h3>
-                    </div>
-                </Link>
-
-                {/* 4. Lucro */}
+                {/* 2. Atendimentos (Nova Card para dar volume ao Dashboard Operacional) */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-transform hover:-translate-y-1">
                     <div className="flex justify-between items-start mb-4">
-                        <div className={`p-2 rounded-lg ${stats.lucro >= 0 ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}><ArrowUpRight size={20} /></div>
+                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Users size={20} /></div>
                     </div>
-                    <p className="text-slate-500 text-sm font-medium">Saldo Líquido</p>
-                    <h3 className={`text-2xl font-bold mt-1 ${stats.lucro >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>{loading ? '...' : formatCurrency(stats.lucro)}</h3>
-                    <p className="text-xs text-slate-400 mt-1">Receita Real - Despesas</p>
+                    <p className="text-slate-500 text-sm font-medium">Atendimentos</p>
+                    <h3 className="text-2xl font-bold text-slate-900 mt-1">{loading ? '...' : stats.atendimentos}</h3>
+                    <p className="text-xs text-slate-400 mt-1">Finalizados este mês</p>
                 </div>
+
+                {/* NÍVEL 2: ESTRATÉGICO (Blindado - Só Dono) */}
+                {isOwner && (
+                    <>
+                        {/* 3. Faturamento Mês */}
+                        <Link to="/financeiro" className="block">
+                            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-transform hover:-translate-y-1 hover:shadow-md cursor-pointer group">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-indigo-100 transition-colors"><TrendingUp size={20} /></div>
+                                    <span className="flex items-center text-xs font-medium text-slate-600 bg-slate-50 px-2 py-1 rounded-full">Mensal</span>
+                                </div>
+                                <p className="text-slate-500 text-sm font-medium">Receita Realizada</p>
+                                <h3 className="text-2xl font-bold text-slate-900 mt-1">{loading ? '...' : formatCurrency(stats.faturamento_real)}</h3>
+                                <div className="flex items-center gap-1 mt-1">
+                                    <span className="text-xs text-slate-400">Previsto: </span>
+                                    <span className="text-xs font-medium text-slate-600">{formatCurrency(stats.faturamento_previsto)}</span>
+                                </div>
+                            </div>
+                        </Link>
+
+                        {/* 4. Lucro */}
+                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm transition-transform hover:-translate-y-1">
+                            <div className="flex justify-between items-start mb-4">
+                                <div className={`p-2 rounded-lg ${stats.lucro >= 0 ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}><ArrowUpRight size={20} /></div>
+                            </div>
+                            <p className="text-slate-500 text-sm font-medium">Saldo Líquido</p>
+                            <h3 className={`text-2xl font-bold mt-1 ${stats.lucro >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>{loading ? '...' : formatCurrency(stats.lucro)}</h3>
+                            <p className="text-xs text-slate-400 mt-1">Receita Real - Despesas</p>
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Chart & List */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Financial Chart */}
+                {/* Financial Chart (Protected) */}
                 <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                    <h3 className="font-bold text-slate-900 mb-6">Fluxo Financeiro Diário</h3>
-                    <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={chartData}>
-                                <defs>
-                                    <linearGradient id="colorReceita" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
-                                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                                    </linearGradient>
-                                    <linearGradient id="colorDespesa" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.1} />
-                                        <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} tickFormatter={(value) => `R$${value}`} />
-                                <Tooltip
-                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                    formatter={(value: number) => [`R$ ${value}`, '']}
-                                />
-                                <Area type="monotone" dataKey="receita" name="Receita" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorReceita)" />
-                                <Area type="monotone" dataKey="despesa" name="Despesa" stroke="#f43f5e" strokeWidth={2} fillOpacity={1} fill="url(#colorDespesa)" />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
+                    <h3 className="font-bold text-slate-900 mb-6">
+                        {isOwner ? 'Fluxo Financeiro Diário' : 'Fluxo de Atendimentos'}
+                    </h3>
+
+                    {isOwner ? (
+                        <div className="h-[300px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={chartData}>
+                                    <defs>
+                                        <linearGradient id="colorReceita" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
+                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                        </linearGradient>
+                                        <linearGradient id="colorDespesa" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.1} />
+                                            <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} tickFormatter={(value) => `R$${value}`} />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                        formatter={(value: number) => [`R$ ${value}`, '']}
+                                    />
+                                    <Area type="monotone" dataKey="receita" name="Receita" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorReceita)" />
+                                    <Area type="monotone" dataKey="despesa" name="Despesa" stroke="#f43f5e" strokeWidth={2} fillOpacity={1} fill="url(#colorDespesa)" />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    ) : (
+                        <div className="h-[300px] w-full flex flex-col items-center justify-center text-slate-400 bg-slate-50 rounded-lg">
+                            <Shield size={48} className="mb-2 opacity-50" />
+                            <p className="text-sm font-medium">Visualização restrita à Administração</p>
+                        </div>
+                    )}
                 </div>
 
-                {/* Recent Patients */}
+                {/* Recent Patients (Public to Staff) */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="font-bold text-slate-900">Últimos Pacientes</h3>

@@ -146,6 +146,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setLoading(true);
         try {
             await supabase.auth.signOut();
+            localStorage.removeItem('google_access_token'); // Clear Google Calendar Token
         } catch (error) {
             console.error("SignOut error:", error);
         }
