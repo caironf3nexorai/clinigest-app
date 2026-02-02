@@ -460,6 +460,7 @@ const CalendarView = () => {
                 .update({
                     status: 'completed',
                     procedure_id: finalProcedureId || null,
+                    procedimento: finalProcedureId ? (procedures.find(p => p.id === finalProcedureId)?.name || '') : '', // Save Name Snapshot
                     recorded_commission: commission,
                     queixa: completionForm.queixa,
                     evolucao: completionForm.evolucao,
