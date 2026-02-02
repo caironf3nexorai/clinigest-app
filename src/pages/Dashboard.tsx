@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Wallet, TrendingUp, Users, ArrowUpRight, ArrowDownRight, DollarSign, Calendar, Shield } from 'lucide-react';
-import { startOfMonth, endOfMonth, isWithinInterval, parseISO, format, eachDayOfInterval } from 'date-fns';
+import { Wallet, TrendingUp, Users, ArrowUpRight, ArrowDownRight, DollarSign, Calendar, Shield, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { startOfMonth, endOfMonth, isWithinInterval, parseISO, format, eachDayOfInterval, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Link } from 'react-router-dom';
 
 export const Dashboard = () => {
     const { user } = useAuth();
+    const [selectedDate, setSelectedDate] = useState(new Date());
     const [stats, setStats] = useState({
         investimento: 0,
         faturamento_real: 0, // Realized (Completed)
@@ -19,26 +20,31 @@ export const Dashboard = () => {
     });
 
     const [chartData, setChartData] = useState<any[]>([]);
+    const [attendanceData, setAttendanceData] = useState<any[]>([]);
     const [recentPatients, setRecentPatients] = useState<any[]>([]);
+    const [noShowList, setNoShowList] = useState<any[]>([]);
+    const [showNoShowModal, setShowNoShowModal] = useState(false);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetchDashboardData();
-    }, [user]);
+    }, [user, selectedDate]);
 
     const fetchDashboardData = async () => {
         if (!user) return;
 
         try {
             const today = new Date();
-            const startStr = format(startOfMonth(today), 'yyyy-MM-dd');
-            const endStr = format(endOfMonth(today), 'yyyy-MM-dd');
+            const currentMonthStart = startOfMonth(selectedDate);
+
+            const startStr = format(currentMonthStart, 'yyyy-MM-dd');
+            const endStr = format(endOfMonth(selectedDate), 'yyyy-MM-dd');
             const todayStr = format(today, 'yyyy-MM-dd');
 
             // 1. Fetch Data
             const [custosResponse, consultasResponse, pacientesResponse] = await Promise.all([
                 supabase.from('custos').select('*'),
-                supabase.from('consultas').select('*'),
+                supabase.from('consultas').select('*, paciente:pacientes(nome)'),
                 supabase.from('pacientes').select('*').order('created_at', { ascending: false }).limit(5)
             ]);
 
@@ -102,6 +108,17 @@ export const Dashboard = () => {
             });
             setChartData(chart);
 
+            // NO-SHOW ANALYTICS (Attendance Data)
+            const attendedCount = monthConsultas.filter(c => c.status === 'completed').length;
+            const noShowFiltered = monthConsultas.filter(c => c.status === 'no_show');
+            const noShowCount = noShowFiltered.length;
+
+            setNoShowList(noShowFiltered);
+            setAttendanceData([
+                { name: 'Compareceram', value: attendedCount, color: '#10b981' }, // Emerald-500
+                { name: 'Faltaram', value: noShowCount, color: '#f43f5e' }       // Rose-500
+            ]);
+
         } catch (error) {
             console.error('Erro ao carregar dashboard:', error);
         } finally {
@@ -120,17 +137,24 @@ export const Dashboard = () => {
 
     return (
         <div className="space-y-8 pb-10">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
                     <p className="text-slate-500">
-                        {isSecretary ? 'Painel Operacional' : `Resumo financeiro de ${format(new Date(), 'MMMM', { locale: ptBR })}`}
+                        {isSecretary ? 'Painel Operacional' : 'Visão Geral da Clínica'}
                     </p>
                 </div>
                 {isOwner && (
-                    <div className="flex gap-2">
-                        <Link to="/financeiro" className="text-sm bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg border border-indigo-100 font-medium hover:bg-indigo-100 transition-colors">
-                            Ver Faturamento Detalhado
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full md:w-auto">
+                        {/* Month Picker */}
+                        <div className="flex items-center justify-between flex-1 md:flex-none gap-2 bg-white rounded-lg p-1 border border-slate-200 shadow-sm order-2 md:order-1">
+                            <button onClick={() => setSelectedDate(prev => subMonths(prev, 1))} className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-indigo-600 transition-colors"><ChevronLeft size={20} /></button>
+                            <span className="text-sm font-bold text-slate-700 capitalize min-w-[120px] text-center leading-none pb-0.5 select-none">{format(selectedDate, 'MMMM yyyy', { locale: ptBR })}</span>
+                            <button onClick={() => setSelectedDate(prev => addMonths(prev, 1))} className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-indigo-600 transition-colors"><ChevronRight size={20} /></button>
+                        </div>
+
+                        <Link to="/financeiro" className="text-sm bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg border border-indigo-100 font-medium hover:bg-indigo-100 transition-colors h-9 flex items-center justify-center flex-1 md:flex-none whitespace-nowrap order-1 md:order-2">
+                            Ver Faturamento
                         </Link>
                     </div>
                 )}
@@ -196,47 +220,98 @@ export const Dashboard = () => {
             {/* Chart & List */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Financial Chart (Protected) */}
-                <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                    <h3 className="font-bold text-slate-900 mb-6">
-                        {isOwner ? 'Fluxo Financeiro Diário' : 'Fluxo de Atendimentos'}
-                    </h3>
+                <div className="lg:col-span-2 space-y-8">
+                    {/* AREA CHART - FLUXO FINANCEIRO */}
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <h3 className="font-bold text-slate-900 mb-6">
+                            {isOwner ? 'Fluxo Financeiro Diário' : 'Fluxo de Atendimentos'}
+                        </h3>
 
-                    {isOwner ? (
-                        <div className="h-[300px] w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={chartData}>
-                                    <defs>
-                                        <linearGradient id="colorReceita" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
-                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                                        </linearGradient>
-                                        <linearGradient id="colorDespesa" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.1} />
-                                            <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} tickFormatter={(value) => `R$${value}`} />
-                                    <Tooltip
-                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                        formatter={(value: number) => [`R$ ${value}`, '']}
-                                    />
-                                    <Area type="monotone" dataKey="receita" name="Receita" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorReceita)" />
-                                    <Area type="monotone" dataKey="despesa" name="Despesa" stroke="#f43f5e" strokeWidth={2} fillOpacity={1} fill="url(#colorDespesa)" />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
-                    ) : (
-                        <div className="h-[300px] w-full flex flex-col items-center justify-center text-slate-400 bg-slate-50 rounded-lg">
-                            <Shield size={48} className="mb-2 opacity-50" />
-                            <p className="text-sm font-medium">Visualização restrita à Administração</p>
+                        {isOwner ? (
+                            <div className="h-[300px] w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={chartData}>
+                                        <defs>
+                                            <linearGradient id="colorReceita" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
+                                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                            </linearGradient>
+                                            <linearGradient id="colorDespesa" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.1} />
+                                                <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} tickFormatter={(value) => `R$${value}`} />
+                                        <Tooltip
+                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                            formatter={(value: any) => [`R$ ${value}`, '']}
+                                        />
+                                        <Area type="monotone" dataKey="receita" name="Receita" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorReceita)" />
+                                        <Area type="monotone" dataKey="despesa" name="Despesa" stroke="#f43f5e" strokeWidth={2} fillOpacity={1} fill="url(#colorDespesa)" />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
+                        ) : (
+                            <div className="h-[300px] w-full flex flex-col items-center justify-center text-slate-400 bg-slate-50 rounded-lg">
+                                <Shield size={48} className="mb-2 opacity-50" />
+                                <p className="text-sm font-medium">Visualização restrita à Administração</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* PIE CHART - ATTENDANCE (NO-SHOW) */}
+                    {isOwner && (
+                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                            <div className="flex justify-between items-center mb-6">
+                                <div>
+                                    <h3 className="font-bold text-slate-900 leading-none">Taxa de Faltas</h3>
+                                    <span className="text-xs text-slate-500 font-normal">Mês Atual</span>
+                                </div>
+                                {noShowList.length > 0 && (
+                                    <button
+                                        onClick={() => setShowNoShowModal(true)}
+                                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-2 py-1 rounded transition-colors"
+                                    >
+                                        Ver Lista
+                                    </button>
+                                )}
+                            </div>
+                            <div className="h-[250px] w-full flex items-center justify-center">
+                                {attendanceData.reduce((acc, curr) => acc + curr.value, 0) === 0 ? (
+                                    <div className="text-center text-slate-400">
+                                        <Users size={48} className="mx-auto mb-2 opacity-20" />
+                                        <p className="text-sm">Sem dados suficientes neste mês</p>
+                                    </div>
+                                ) : (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={attendanceData}
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={60}
+                                                outerRadius={80}
+                                                paddingAngle={5}
+                                                dataKey="value"
+                                            >
+                                                {attendanceData.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip contentStyle={{ borderRadius: '8px', border: 'none' }} />
+                                            <Legend verticalAlign="bottom" height={36} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
 
                 {/* Recent Patients (Public to Staff) */}
-                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm h-fit">
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="font-bold text-slate-900">Últimos Pacientes</h3>
                         <Link to="/pacientes" className="text-xs font-medium text-[var(--primary)] hover:underline">Ver todos</Link>
@@ -268,6 +343,44 @@ export const Dashboard = () => {
                     </div>
                 </div>
             </div>
+
+            {/* No Show Modal Details */}
+            {showNoShowModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowNoShowModal(false)}>
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
+                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-red-50">
+                            <h3 className="font-bold text-lg text-red-900">Pacientes que Faltaram</h3>
+                            <button onClick={() => setShowNoShowModal(false)}><X className="text-red-400 hover:text-red-600" /></button>
+                        </div>
+                        <div className="max-h-[60vh] overflow-y-auto p-4 space-y-2">
+                            {noShowList.length === 0 ? (
+                                <p className="text-center text-slate-500 py-4">Nenhuma falta registrada.</p>
+                            ) : (
+                                noShowList.map((item: any) => (
+                                    <div key={item.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-100 hover:border-red-200 transition-colors shadow-sm">
+                                        <div>
+                                            <p className="font-bold text-slate-800">{item.paciente?.nome || 'Paciente Desconhecido'}</p>
+                                            <p className="text-xs text-slate-500 flex items-center gap-1">
+                                                <Calendar size={12} />
+                                                {format(parseISO(item.data_consulta), "dd/MM/yyyy 'às' HH:mm")}
+                                            </p>
+                                        </div>
+                                        <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded border border-red-100 uppercase">Faltou</span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                        <div className="p-3 bg-slate-50 border-t border-slate-100 text-right">
+                            <button
+                                onClick={() => setShowNoShowModal(false)}
+                                className="px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium hover:bg-slate-50 text-slate-700"
+                            >
+                                Fechar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

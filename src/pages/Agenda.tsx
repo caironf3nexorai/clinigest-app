@@ -23,6 +23,21 @@ const localizer = dateFnsLocalizer({
     locales,
 });
 
+// Mapping Google Calendar Colors to Hex
+const GOOGLE_EVENT_COLORS: Record<string, string> = {
+    "1": "#7986cb", // Lavender
+    "2": "#33b679", // Sage
+    "3": "#8e24aa", // Grape (Roxo)
+    "4": "#e67c73", // Flamingo
+    "5": "#f6bf26", // Banana
+    "6": "#f4511e", // Tangerine
+    "7": "#039be5", // Peacock
+    "8": "#616161", // Graphite
+    "9": "#3f51b5", // Blueberry
+    "10": "#0b8043", // Basil (Verde)
+    "11": "#d50000"  // Tomato (Vermelho)
+};
+
 // ... (Keep existing imports/localizer)
 
 const CalendarView = () => {
@@ -188,9 +203,12 @@ const CalendarView = () => {
 
                 const mapped = (res.data.items || []).map((ev: any) => ({
                     ...ev,
+                    title: ev.summary || '(Sem Título)', // Required by React-Big-Calendar
                     start: new Date(ev.start.dateTime || ev.start.date),
                     end: new Date(ev.end.dateTime || ev.end.date),
                     allDay: !ev.start.dateTime,
+                    // Resolve Color: Event Color > Calendar Color > Default
+                    backgroundColor: ev.colorId ? GOOGLE_EVENT_COLORS[ev.colorId] : (cal.backgroundColor || '#3174ad'),
                     resource: { calendarId: cal.id, calendarColor: cal.backgroundColor }
                 }));
                 return mapped;
@@ -289,16 +307,18 @@ const CalendarView = () => {
 
             // SECURITY CHECK: If no dentist mapped, prevent "Secretary" attribution
             if (!professionalId) {
-                // If I am a dentist linking my own calendar event (maybe personal/primary), it's ok.
-                if (profile?.role === 'dentist' || profile?.role === 'clinic_owner') {
-                    // Ideally we should warn, but for Owner/Dentist self-use, we permit fallback IF it matches their own email? 
-                    // For now, let's be strict: force them to link.
-                    // Actually, let's keep the fallback for Dentist to avoid breaking "My Agenda" flow if they haven't set it up yet.
-                    professionalId = user?.id;
+                // EXEMPTION: Simple Mode (Single Dentist/Owner)
+                if (isSimpleMode) {
+                    professionalId = profile?.owner_id || user?.id || '';
+                    console.log('DEBUG: Simple Mode - Auto-binding to Owner', professionalId);
+                }
+                // Fallback for Dentist/Owner linking their own calendar
+                else if (profile?.role === 'dentist' || profile?.role === 'clinic_owner') {
+                    professionalId = user?.id || '';
                     console.log('DEBUG: Using self-ID as fallback (Role Dentist/Owner)');
                 } else {
-                    // Critical Error for Secretaries
-                    const errMessage = `ERRO DE VINCULAÇÃO:\n\nNão identifiquei o Dentista desta agenda (${calendarId}).\n\nPor favor, copie este ID e vincule-o ao Dentista na tela de 'Equipe'.`;
+                    // Critical Error for Secretaries in PRO/MULTI Mode
+                    const errMessage = `ERRO DE VINCULAÇÃO:\n\nNão identifiquei o Dentista desta agenda (${calendarId}).\n\nNo Plano Pro/Equipe, é necessário vincular o ID da agenda ao Dentista na tela de 'Equipe'.`;
                     alert(errMessage);
                     console.error('Link Blocked: Missing Dentist Mapping', calendarId);
                     setLoadingLink(false);
@@ -351,6 +371,48 @@ const CalendarView = () => {
         });
 
         setShowCompletionModal(true);
+    };
+
+    // Helper: Update Google Calendar Event (Title & Color)
+    const updateGoogleEvent = async (calendarId: string, eventId: string, currentTitle: string, tag: string, colorId: string) => {
+        if (!accessToken) return;
+        try {
+            const safeTitle = currentTitle || '';
+            const cleanTitle = safeTitle.replace(/^\[.*?\]\s*/, '');
+            const newTitle = `${tag} ${cleanTitle}`;
+
+            await axios.patch(
+                `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`,
+                {
+                    summary: newTitle,
+                    colorId: colorId
+                },
+                { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+
+            // Optimistically update local state
+            const updatedArgs: any = {
+                summary: newTitle,
+                title: newTitle // Explicitly update title for RBC
+            };
+            if (colorId && GOOGLE_EVENT_COLORS[colorId]) {
+                updatedArgs.backgroundColor = GOOGLE_EVENT_COLORS[colorId];
+                updatedArgs.colorId = colorId;
+            }
+
+            if (selectedEvent && selectedEvent.id === eventId) {
+                setSelectedEvent({ ...selectedEvent, ...updatedArgs });
+            }
+            setEvents(prev => prev.map(ev => ev.id === eventId ? { ...ev, ...updatedArgs } : ev));
+
+        } catch (error: any) {
+            console.error('Failed to update Google Calendar event', error);
+            if (error?.response?.status === 401) {
+                alert("Sessão do Google EXPIROU. Desconecte e conecte novamente a agenda.");
+            } else {
+                console.warn("Erro ao atualizar Google Calendar:", error);
+            }
+        }
     };
 
     // Action: Actual Save
@@ -417,6 +479,11 @@ const CalendarView = () => {
                     .eq('id', linkedAppointment.paciente_id);
             }
 
+            // Google Calendar Sync: Add [CONFIRMADO] tag & GREEN color (10)
+            if (selectedEvent?.resource?.calendarId && selectedEvent?.id) {
+                await updateGoogleEvent(selectedEvent.resource.calendarId, selectedEvent.id, selectedEvent.summary || '', '[CONFIRMADO]', '10');
+            }
+
             // Visual feedback
             setLinkedAppointment({
                 ...linkedAppointment,
@@ -449,13 +516,18 @@ const CalendarView = () => {
 
         if (!error) {
             setLinkedAppointment({ ...linkedAppointment, status: 'no_show', recorded_commission: 0 } as any);
+
+            // Google Calendar Sync: Add [FALTOU] tag & RED color (11)
+            if (selectedEvent?.resource?.calendarId && selectedEvent?.id) {
+                await updateGoogleEvent(selectedEvent.resource.calendarId, selectedEvent.id, selectedEvent.summary || '', '[FALTOU]', '11');
+            }
         }
     };
 
     const eventPropGetter = useCallback(
         (event: any) => ({
             style: {
-                backgroundColor: event.resource?.calendarColor || '#3174ad',
+                backgroundColor: event.backgroundColor || event.resource?.calendarColor || '#3174ad',
             },
         }),
         []

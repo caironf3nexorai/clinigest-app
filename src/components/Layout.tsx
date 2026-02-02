@@ -48,9 +48,11 @@ export const Layout = () => {
         // [ALL PLANS] Despesas
         navItems.push({ to: '/custos', icon: DollarSign, label: 'Despesas' });
 
+        // [ALL PLANS] Serviços (Owner Only - Both Simple & Pro)
+        navItems.push({ to: '/procedimentos', icon: Settings, label: 'Serviços' });
+
         // [PRO ONLY] Advanced Settings
         if (!isSimpleMode) {
-            navItems.push({ to: '/procedimentos', icon: Settings, label: 'Serviços' });
             navItems.push({ to: '/comissoes', icon: FileText, label: 'Comissões' });
         }
 
