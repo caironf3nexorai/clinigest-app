@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Search, Phone, Calendar, ArrowLeft, FileText, Activity, Pill, DollarSign, Clock, Stethoscope, Trash2, Edit, MessageCircle, Paperclip, Printer, User } from 'lucide-react';
+import { Plus, Search, Phone, Calendar, ArrowLeft, FileText, Activity, Pill, DollarSign, Clock, Stethoscope, Trash2, Edit, MessageCircle, Paperclip, Printer, User, X, Shield } from 'lucide-react';
 import type { Paciente, Consulta } from '../types/db';
 import { format, parseISO, differenceInYears } from 'date-fns';
 import { PatientAttachments } from '../components/PatientAttachments';
@@ -573,75 +573,93 @@ export const Pacientes = () => {
                                             <p className="text-slate-500">Nenhum atendimento registrado.</p>
                                         </div>
                                     ) : (
-                                        consultas.map((consulta) => (
-                                            <div key={consulta.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                                                {/* Icon on Timeline */}
-                                                <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-100 group-[.is-active]:bg-[var(--primary-light)] text-slate-500 group-[.is-active]:text-[var(--primary)] shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
-                                                    <Activity size={18} />
-                                                </div>
+                                        consultas.map((consulta) => {
+                                            const isNoShow = consulta.status === 'no_show';
+                                            return (
+                                                <div key={consulta.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                                                    {/* Icon on Timeline */}
+                                                    <div className={`flex items-center justify-center w-10 h-10 rounded-full border border-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 ${isNoShow ? 'bg-red-100 text-red-500' : 'bg-slate-100 group-[.is-active]:bg-[var(--primary-light)] text-slate-500 group-[.is-active]:text-[var(--primary)]'
+                                                        }`}>
+                                                        {isNoShow ? <X size={18} /> : <Activity size={18} />}
+                                                    </div>
 
-                                                {/* Card */}
-                                                <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                                                    <div className="flex items-center justify-between mb-1">
-                                                        <time className="font-bold text-slate-900 flex items-center gap-1">
-                                                            {format(parseISO(consulta.data_consulta), 'dd/MM/yyyy')}
-                                                        </time>
-                                                        <div className="flex items-center gap-2">
-                                                            {consulta.valor_consulta && consulta.valor_consulta > 0 && (
-                                                                <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                                                    <DollarSign size={10} />
-                                                                    R$ {consulta.valor_consulta}
-                                                                </span>
+                                                    {/* Card */}
+                                                    <div className={`w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-5 rounded-xl border shadow-sm hover:shadow-md transition-shadow ${isNoShow ? 'border-red-100 bg-red-50/50' : 'border-slate-200'}`}>
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <time className="font-bold text-slate-900 flex items-center gap-2">
+                                                                {format(parseISO(consulta.data_consulta), 'dd/MM/yyyy')}
+                                                                {isNoShow && (
+                                                                    <span className="text-[10px] font-bold uppercase tracking-wide bg-red-100 text-red-600 px-2 py-0.5 rounded border border-red-200">
+                                                                        Faltou
+                                                                    </span>
+                                                                )}
+                                                            </time>
+                                                            <div className="flex items-center gap-2">
+                                                                {consulta.valor_consulta && consulta.valor_consulta > 0 && !isNoShow && (
+                                                                    <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                        <DollarSign size={10} />
+                                                                        R$ {consulta.valor_consulta}
+                                                                    </span>
+                                                                )}
+                                                                <button
+                                                                    onClick={() => handleDeleteConsulta(consulta.id)}
+                                                                    className="text-slate-300 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors"
+                                                                    title="Excluir Atendimento"
+                                                                >
+                                                                    <Trash2 size={14} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Professional Name */}
+                                                        <div className="text-xs text-slate-400 mb-3 flex items-center gap-1">
+                                                            <User size={12} />
+                                                            <span>Dentista: <span className="font-medium text-slate-600">{teamNames[consulta.user_id || ''] || 'Desconhecido'}</span></span>
+                                                        </div>
+
+                                                        <div className="space-y-2 text-sm">
+                                                            {isNoShow ? (
+                                                                <div className="text-slate-500 italic flex items-center gap-2">
+                                                                    <Shield size={14} className="text-slate-400" />
+                                                                    Paciente não compareceu a este agendamento.
+                                                                </div>
+                                                            ) : (
+                                                                <>
+                                                                    {consulta.procedimento && (
+                                                                        <div className="font-semibold text-[var(--primary)]">
+                                                                            {consulta.procedimento}
+                                                                        </div>
+                                                                    )}
+
+                                                                    {consulta.queixa && (
+                                                                        <div>
+                                                                            <span className="text-slate-400 text-xs uppercase tracking-wider font-bold">Queixa:</span>
+                                                                            <p className="text-slate-700">{consulta.queixa}</p>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {consulta.evolucao && (
+                                                                        <div>
+                                                                            <span className="text-slate-400 text-xs uppercase tracking-wider font-bold">Evolução:</span>
+                                                                            <p className="text-slate-600 italic">"{consulta.evolucao}"</p>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {consulta.medicamentos && (
+                                                                        <div className="bg-slate-50 p-2 rounded-lg mt-2 border border-slate-100">
+                                                                            <span className="text-slate-400 text-xs uppercase tracking-wider font-bold flex items-center gap-1 mb-1">
+                                                                                <Pill size={12} /> Prescrição:
+                                                                            </span>
+                                                                            <p className="text-slate-700 font-medium">{consulta.medicamentos}</p>
+                                                                        </div>
+                                                                    )}
+                                                                </>
                                                             )}
-                                                            <button
-                                                                onClick={() => handleDeleteConsulta(consulta.id)}
-                                                                className="text-slate-300 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors"
-                                                                title="Excluir Atendimento"
-                                                            >
-                                                                <Trash2 size={14} />
-                                                            </button>
                                                         </div>
                                                     </div>
-
-                                                    {/* Professional Name */}
-                                                    <div className="text-xs text-slate-400 mb-3 flex items-center gap-1">
-                                                        <User size={12} />
-                                                        <span>Dentista: <span className="font-medium text-slate-600">{teamNames[consulta.user_id] || 'Desconhecido'}</span></span>
-                                                    </div>
-
-                                                    <div className="space-y-2 text-sm">
-                                                        {consulta.procedimento && (
-                                                            <div className="font-semibold text-[var(--primary)]">
-                                                                {consulta.procedimento}
-                                                            </div>
-                                                        )}
-
-                                                        {consulta.queixa && (
-                                                            <div>
-                                                                <span className="text-slate-400 text-xs uppercase tracking-wider font-bold">Queixa:</span>
-                                                                <p className="text-slate-700">{consulta.queixa}</p>
-                                                            </div>
-                                                        )}
-
-                                                        {consulta.evolucao && (
-                                                            <div>
-                                                                <span className="text-slate-400 text-xs uppercase tracking-wider font-bold">Evolução:</span>
-                                                                <p className="text-slate-600 italic">"{consulta.evolucao}"</p>
-                                                            </div>
-                                                        )}
-
-                                                        {consulta.medicamentos && (
-                                                            <div className="bg-slate-50 p-2 rounded-lg mt-2 border border-slate-100">
-                                                                <span className="text-slate-400 text-xs uppercase tracking-wider font-bold flex items-center gap-1 mb-1">
-                                                                    <Pill size={12} /> Prescrição:
-                                                                </span>
-                                                                <p className="text-slate-700 font-medium">{consulta.medicamentos}</p>
-                                                            </div>
-                                                        )}
-                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))
+                                            );
+                                        })
                                     )}
                                 </div>
                             )}
