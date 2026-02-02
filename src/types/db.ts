@@ -66,6 +66,7 @@ export type Consulta = {
     end_time?: string; // End Time (Future proofing for calendar)
     queixa: string; // Description/Notes
     evolucao?: string;
+    procedimento?: string;
 
     // Procedure & Finance
     procedure_id?: string;

@@ -81,41 +81,48 @@ export const PatientPrintView = forwardRef<HTMLDivElement, PatientPrintViewProps
                     <p className="text-slate-500 italic">Nenhum registro encontrado.</p>
                 ) : (
                     <div className="space-y-6">
-                        {consultas.map((c, index) => (
-                            <div key={c.id} className="break-inside-avoid border-l-4 border-slate-300 pl-4 py-1">
-                                <div className="flex justify-between items-baseline mb-2">
-                                    <h3 className="font-bold text-lg">
-                                        {format(parseISO(c.data_consulta), 'dd/MM/yyyy')}
-                                    </h3>
-                                    <span className="text-sm font-semibold bg-slate-100 px-2 py-1 rounded print:border print:border-slate-300">
-                                        {c.procedimento || 'Consulta de Rotina'}
-                                    </span>
-                                </div>
+                        {consultas.map((c, index) => {
+                            const isNoShow = c.status === 'no_show';
+                            return (
+                                <div key={c.id} className={`break-inside-avoid border-l-4 pl-4 py-1 ${isNoShow ? 'border-red-400' : 'border-slate-300'}`}>
+                                    <div className="flex justify-between items-baseline mb-2">
+                                        <h3 className="font-bold text-lg">
+                                            {format(parseISO(c.data_consulta), 'dd/MM/yyyy')}
+                                        </h3>
+                                        <span className={`text-sm font-bold uppercase tracking-wide px-2 py-1 rounded print:border ${isNoShow ? 'bg-red-100 text-red-700 print:border-red-300' : 'bg-slate-100 print:border-slate-300'}`}>
+                                            {isNoShow ? 'FALTOU' : (c.procedimento || 'Atendimento')}
+                                        </span>
+                                    </div>
 
-                                <div className="grid grid-cols-1 gap-3 text-sm leading-relaxed">
-                                    {c.queixa && (
-                                        <div>
-                                            <span className="font-bold text-slate-700 block">Queixa:</span>
-                                            {c.queixa}
-                                        </div>
-                                    )}
-                                    {c.evolucao && (
-                                        <div>
-                                            <span className="font-bold text-slate-700 block">Evolução:</span>
-                                            {c.evolucao}
-                                        </div>
-                                    )}
-                                    {c.medicamentos && (
-                                        <div className="mt-2 pt-2 border-t border-dashed border-slate-200">
-                                            <span className="font-bold text-slate-700 block">Prescrição / Medicamentos:</span>
-                                            <pre className="whitespace-pre-wrap font-sans text-slate-800 bg-slate-50 p-2 rounded print:bg-transparent print:p-0">
-                                                {c.medicamentos}
-                                            </pre>
+                                    {isNoShow ? (
+                                        <p className="text-sm italic text-slate-500">Paciente não compareceu ao agendamento.</p>
+                                    ) : (
+                                        <div className="grid grid-cols-1 gap-3 text-sm leading-relaxed">
+                                            {c.queixa && (
+                                                <div>
+                                                    <span className="font-bold text-slate-700 block">Queixa:</span>
+                                                    {c.queixa}
+                                                </div>
+                                            )}
+                                            {c.evolucao && (
+                                                <div>
+                                                    <span className="font-bold text-slate-700 block">Evolução:</span>
+                                                    {c.evolucao}
+                                                </div>
+                                            )}
+                                            {c.medicamentos && (
+                                                <div className="mt-2 pt-2 border-t border-dashed border-slate-200">
+                                                    <span className="font-bold text-slate-700 block">Prescrição / Medicamentos:</span>
+                                                    <pre className="whitespace-pre-wrap font-sans text-slate-800 bg-slate-50 p-2 rounded print:bg-transparent print:p-0">
+                                                        {c.medicamentos}
+                                                    </pre>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>
