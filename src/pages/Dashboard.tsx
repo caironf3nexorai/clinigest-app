@@ -8,7 +8,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Link } from 'react-router-dom';
 
 export const Dashboard = () => {
-    const { user } = useAuth();
+    const { user, profile } = useAuth();
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [stats, setStats] = useState({
         investimento: 0,
@@ -131,7 +131,7 @@ export const Dashboard = () => {
     };
 
     // 5. Privacy Logic
-    const role = user?.user_metadata?.role || 'secretary'; // Default to restrictive
+    const role = profile?.role || 'secretary'; // Default to restrictive
     const isOwner = role === 'clinic_owner' || role === 'super_admin';
     const isSecretary = role === 'secretary';
 

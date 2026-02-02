@@ -18,7 +18,7 @@ export type Profile = {
     created_at: string;
     plan_config: PlanConfig; // Feature Flags
     linked_calendar_id?: string; // Google Calendar ID for synchronization
-    role?: 'clinic_owner' | 'dentist' | 'secretary'; // Role-based access
+    role?: 'clinic_owner' | 'dentist' | 'secretary' | 'super_admin'; // Role-based access
 };
 
 export type Procedure = {
