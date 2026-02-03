@@ -35,7 +35,8 @@ export const Pacientes = () => {
         procedimento: '',
         medicamentos: '',
         valor_consulta: '',
-        data_consulta: new Date().toISOString().split('T')[0]
+        data_consulta: new Date().toISOString().split('T')[0],
+        payment_method: 'none'
     });
 
     useEffect(() => {
@@ -195,7 +196,9 @@ export const Pacientes = () => {
                 paciente_id: selectedPaciente.id,
                 ...novaConsulta,
                 data_consulta: dataConsultaSafe,
-                valor_consulta: novaConsulta.valor_consulta ? parseFloat(novaConsulta.valor_consulta) : 0
+                valor_consulta: novaConsulta.valor_consulta ? parseFloat(novaConsulta.valor_consulta) : 0,
+                payment_method: novaConsulta.payment_method === 'none' ? null : novaConsulta.payment_method,
+                status: 'completed'
             }).select().single();
 
             if (error) throw error;
@@ -208,7 +211,8 @@ export const Pacientes = () => {
                 procedimento: '',
                 medicamentos: '',
                 valor_consulta: '',
-                data_consulta: new Date().toISOString().split('T')[0]
+                data_consulta: new Date().toISOString().split('T')[0],
+                payment_method: 'none'
             });
             alert('Atendimento registrado com sucesso!');
         } catch (error) {
@@ -351,7 +355,7 @@ export const Pacientes = () => {
                                             {/* Registered By */}
                                             <div className="text-xs text-slate-400 flex items-center gap-1 mb-1">
                                                 <User size={10} />
-                                                <span>Profissional: {teamNames[paciente.last_professional_id || paciente.user_id] || teamNames[paciente.user_id] || '...'}</span>
+                                                <span>Profissional: {teamNames[paciente.last_professional_id || ''] || teamNames[paciente.user_id || ''] || '...'}</span>
                                             </div>
 
                                             <div className="flex items-center gap-3 text-sm text-slate-500">
@@ -527,6 +531,20 @@ export const Pacientes = () => {
                                             placeholder="0.00"
                                         />
                                     </div>
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Forma de Pagamento</label>
+                                        <select
+                                            className="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                            value={novaConsulta.payment_method}
+                                            onChange={e => setNovaConsulta({ ...novaConsulta, payment_method: e.target.value })}
+                                        >
+                                            <option value="none">Selecione...</option>
+                                            <option value="money">Dinheiro</option>
+                                            <option value="card">Cartão de Crédito/Débito</option>
+                                            <option value="pix">Pix</option>
+                                            <option value="warranty">Garantia (Retorno)</option>
+                                        </select>
+                                    </div>
 
                                     <button type="submit" className="btn btn-primary w-full">
                                         Salvar Atendimento
@@ -596,10 +614,21 @@ export const Pacientes = () => {
                                                             </time>
                                                             <div className="flex items-center gap-2">
                                                                 {consulta.valor_consulta && consulta.valor_consulta > 0 && !isNoShow && (
-                                                                    <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                                                                        <DollarSign size={10} />
-                                                                        R$ {consulta.valor_consulta}
-                                                                    </span>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                            <DollarSign size={10} />
+                                                                            R$ {consulta.valor_consulta}
+                                                                        </span>
+                                                                        {/* Payment Method Badge */}
+                                                                        {consulta.payment_method && consulta.payment_method !== 'none' && (
+                                                                            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                                                                {consulta.payment_method === 'money' ? 'Dinheiro' :
+                                                                                    consulta.payment_method === 'card' ? 'Cartão' :
+                                                                                        consulta.payment_method === 'pix' ? 'Pix' :
+                                                                                            consulta.payment_method === 'warranty' ? 'Garantia' : consulta.payment_method}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 )}
                                                                 <button
                                                                     onClick={() => handleDeleteConsulta(consulta.id)}

@@ -26,7 +26,8 @@ export const Layout = () => {
     // 1. Roles & Permissions
     const role = profile?.role || 'secretary'; // Secure by default (restrictive)
     const isSuperAdmin = role === 'super_admin';
-    const isOwner = role === 'clinic_owner' || isSuperAdmin;
+    // Logic Update: Check if user is the TRUE owner by ID matching (Robust for Simple Mode)
+    const isOwner = role === 'clinic_owner' || isSuperAdmin || (profile?.id && profile?.owner_id && profile.id === profile.owner_id);
 
     // 2. Plan Configuration
     // Super Admin overrides Simple Mode (sees everything)

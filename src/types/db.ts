@@ -46,6 +46,8 @@ export type Custo = {
 export type Paciente = {
     id: string;
     created_at: string;
+    user_id?: string; // Creator
+    owner_id?: string; // Clinic Owner
     nome: string;
     telefone: string;
     data_nascimento?: string;

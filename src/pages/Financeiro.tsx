@@ -133,9 +133,36 @@ export const Financeiro = () => {
         }
     };
 
+    const handleExport = () => {
+        if (transactions.length === 0) return alert('Sem dados para exportar');
+
+        const headers = ['Data', 'Paciente', 'Procedimento', 'Forma de Pagamento', 'Valor'];
+        const rows = transactions.map(t => [
+            format(parseISO(t.data_consulta), 'dd/MM/yyyy HH:mm'),
+            t.paciente?.nome || 'N/A',
+            t.procedure?.name || t.procedimento || 'N/A',
+            t.payment_method === 'none' ? 'Não Informado' : t.payment_method,
+            (t.valor_consulta || 0).toFixed(2).replace('.', ',')
+        ]);
+
+        const csvContent = [
+            headers.join(';'),
+            ...rows.map(r => r.join(';'))
+        ].join('\n');
+
+        const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `vendas_${format(currentDate, 'MM-yyyy')}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+    };
+
     // Permission Check
     const role = profile?.role || 'clinic_owner';
-    const isOwner = role === 'clinic_owner' || role === 'super_admin';
+    // Logic Update: Check if user is the TRUE owner by ID matching (Robust for Simple Mode)
+    const isOwner = role === 'clinic_owner' || role === 'super_admin' || (profile?.id && profile?.owner_id && profile.id === profile.owner_id);
     const hasAccess = isOwner || profile?.plan_config?.simple_mode === true;
 
     if (!hasAccess) {
@@ -254,7 +281,10 @@ export const Financeiro = () => {
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm lg:col-span-2 flex flex-col">
                     <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                         <h3 className="font-bold text-slate-800">Vendas do Mês (Realizadas)</h3>
-                        <button className="text-xs text-indigo-600 font-bold hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1">
+                        <button
+                            onClick={handleExport}
+                            className="text-xs text-indigo-600 font-bold hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                        >
                             <Download size={14} /> Exportar
                         </button>
                     </div>

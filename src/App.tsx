@@ -105,7 +105,7 @@ function App() {
               </RequireRole>
             } />
             <Route path="financeiro" element={
-              <RequireRole allowedRoles={['clinic_owner']} requireFinancial={true}>
+              <RequireRole allowedRoles={['clinic_owner']}>
                 <Financeiro />
               </RequireRole>
             } />

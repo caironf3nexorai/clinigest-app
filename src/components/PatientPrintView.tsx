@@ -118,6 +118,28 @@ export const PatientPrintView = forwardRef<HTMLDivElement, PatientPrintViewProps
                                                     </pre>
                                                 </div>
                                             )}
+
+                                            {/* Value & Payment Method */}
+                                            {c.valor_consulta && c.valor_consulta > 0 && (
+                                                <p className="mt-1 pt-2 border-t border-slate-200 border-dashed flex items-center justify-between">
+                                                    <span>
+                                                        <span className="font-bold text-slate-700 gap-1 inline-flex items-center">
+                                                            <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded text-xs">R$</span> Valor:
+                                                        </span>
+                                                        <span className="font-semibold ml-1">
+                                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(c.valor_consulta)}
+                                                        </span>
+                                                    </span>
+                                                    {c.payment_method && c.payment_method !== 'none' && (
+                                                        <span className="text-xs uppercase font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                                            Pgto: {c.payment_method === 'money' ? 'Dinheiro' :
+                                                                c.payment_method === 'card' ? 'Cartão' :
+                                                                    c.payment_method === 'pix' ? 'Pix' :
+                                                                        c.payment_method === 'warranty' ? 'Garantia' : c.payment_method}
+                                                        </span>
+                                                    )}
+                                                </p>
+                                            )}
                                         </div>
                                     )}
                                 </div>

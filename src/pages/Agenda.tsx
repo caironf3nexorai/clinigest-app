@@ -173,9 +173,14 @@ const CalendarView = () => {
             await fetchEventsForCalendars(token, loadedCalendars, initialIds, start, end);
             setLastUpdated(new Date());
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error loading calendar data", error);
-            alert("Erro ao carregar agenda. Verifique as permissões.");
+            if (error?.response?.status === 401) {
+                alert("Sessão do Google expirou. Por favor, conecte novamente.");
+                logout(); // Auto-logout to clear invalid state
+            } else {
+                alert("Erro ao carregar agenda. Verifique as permissões.");
+            }
         } finally {
             setIsLoading(false);
         }
@@ -462,6 +467,7 @@ const CalendarView = () => {
                     procedure_id: finalProcedureId || null,
                     procedimento: finalProcedureId ? (procedures.find(p => p.id === finalProcedureId)?.name || '') : '', // Save Name Snapshot
                     recorded_commission: commission,
+                    payment_method: completionForm.payment_method, // Fix: Save Payment Method
                     queixa: completionForm.queixa,
                     evolucao: completionForm.evolucao,
                     medicamentos: completionForm.medicamentos,
