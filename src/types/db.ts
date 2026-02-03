@@ -41,6 +41,9 @@ export type Custo = {
     data_validade?: string;
     recorrente: boolean;
     pago?: boolean;
+    grupo_id?: string;
+    parcela_numero?: number;
+    total_parcelas?: number;
 };
 
 export type Paciente = {
@@ -53,6 +56,16 @@ export type Paciente = {
     data_nascimento?: string;
     email?: string;
     last_professional_id?: string;
+    deleted_at?: string; // Soft Delete
+};
+
+export type Anamnese = {
+    id: string;
+    paciente_id: string;
+    data: Record<string, any>; // JSONB
+    created_at: string;
+    updated_at: string;
+    updated_by?: string;
 };
 
 export type AppointmentStatus = 'scheduled' | 'confirmed' | 'completed' | 'no_show' | 'cancelled';
@@ -76,6 +89,7 @@ export type Consulta = {
     medicamentos?: string;
     valor_consulta?: number; // Cache of price at time of booking
     payment_method?: 'money' | 'card' | 'pix' | 'warranty' | 'none';
+    installments?: number;
 
     // Status & Commission
     status: AppointmentStatus;

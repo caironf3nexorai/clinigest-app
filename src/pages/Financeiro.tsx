@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { format, startOfMonth, endOfMonth, parseISO, subMonths, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Wallet, TrendingUp, DollarSign, Calendar, ArrowLeft, ArrowRight, CreditCard, Banknote, QrCode, ShieldCheck, FileText, Download, TrendingDown } from 'lucide-react';
+import { Wallet, TrendingUp, DollarSign, Calendar, ArrowLeft, ArrowRight, CreditCard, Banknote, QrCode, ShieldCheck, FileText, Download, TrendingDown, PieChart as PieChartIcon } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 
 export const Financeiro = () => {
@@ -123,11 +123,11 @@ export const Financeiro = () => {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
     };
 
-    const getPaymentLabel = (method: string) => {
+    const getPaymentLabel = (method: string, installments?: number) => {
         switch (method) {
-            case 'money': return <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-1 rounded text-xs font-bold"><Banknote size={12} /> Dinheiro</span>;
-            case 'card': return <span className="flex items-center gap-1 text-violet-600 bg-violet-50 px-2 py-1 rounded text-xs font-bold"><CreditCard size={12} /> Cartão</span>;
-            case 'pix': return <span className="flex items-center gap-1 text-sky-600 bg-sky-50 px-2 py-1 rounded text-xs font-bold"><QrCode size={12} /> Pix</span>;
+            case 'money': return <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-1 rounded text-xs font-bold"><Banknote size={12} /> Dinheiro (A Vista)</span>;
+            case 'card': return <span className="flex items-center gap-1 text-violet-600 bg-violet-50 px-2 py-1 rounded text-xs font-bold"><CreditCard size={12} /> Cartão {installments && installments > 1 ? `(${installments}x)` : '(A Vista)'}</span>;
+            case 'pix': return <span className="flex items-center gap-1 text-sky-600 bg-sky-50 px-2 py-1 rounded text-xs font-bold"><QrCode size={12} /> Pix (A Vista)</span>;
             case 'warranty': return <span className="flex items-center gap-1 text-amber-600 bg-amber-50 px-2 py-1 rounded text-xs font-bold"><ShieldCheck size={12} /> Garantia</span>;
             default: return <span className="text-slate-400 text-xs">Não Informado</span>;
         }
@@ -141,7 +141,11 @@ export const Financeiro = () => {
             format(parseISO(t.data_consulta), 'dd/MM/yyyy HH:mm'),
             t.paciente?.nome || 'N/A',
             t.procedure?.name || t.procedimento || 'N/A',
-            t.payment_method === 'none' ? 'Não Informado' : t.payment_method,
+            t.payment_method === 'none' ? 'Não Informado' :
+                t.payment_method === 'money' ? 'Dinheiro (A Vista)' :
+                    t.payment_method === 'pix' ? 'Pix (A Vista)' :
+                        t.payment_method === 'card' ? `Cartão ${t.installments > 1 ? `(${t.installments}x)` : '(A Vista)'}` :
+                            t.payment_method === 'warranty' ? 'Garantia' : t.payment_method,
             (t.valor_consulta || 0).toFixed(2).replace('.', ',')
         ]);
 
@@ -246,7 +250,7 @@ export const Financeiro = () => {
                 {/* Chart Section */}
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm lg:col-span-1">
                     <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                        <PieChart className="text-slate-400" size={20} /> Formas de Pagamento
+                        <PieChartIcon className="text-slate-400" size={20} /> Formas de Pagamento
                     </h3>
                     <div className="h-64">
                         {loading ? (
@@ -317,7 +321,7 @@ export const Financeiro = () => {
                                                 {t.procedure?.name || '-'}
                                             </td>
                                             <td className="px-6 py-4">
-                                                {getPaymentLabel(t.payment_method)}
+                                                {getPaymentLabel(t.payment_method, t.installments)}
                                             </td>
                                             <td className="px-6 py-4 text-right font-bold text-slate-700">
                                                 {formatCurrency(t.valor_consulta || 0)}

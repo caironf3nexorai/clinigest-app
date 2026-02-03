@@ -133,7 +133,7 @@ export const PatientPrintView = forwardRef<HTMLDivElement, PatientPrintViewProps
                                                     {c.payment_method && c.payment_method !== 'none' && (
                                                         <span className="text-xs uppercase font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                                             Pgto: {c.payment_method === 'money' ? 'Dinheiro' :
-                                                                c.payment_method === 'card' ? 'Cartão' :
+                                                                c.payment_method === 'card' ? `Cartão ${c.installments && c.installments > 1 ? `(${c.installments}x)` : ''}` :
                                                                     c.payment_method === 'pix' ? 'Pix' :
                                                                         c.payment_method === 'warranty' ? 'Garantia' : c.payment_method}
                                                         </span>

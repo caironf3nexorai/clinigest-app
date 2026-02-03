@@ -2,10 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Calculator } from '../components/Calculator';
-import { Plus, Calculator as CalcIcon, Trash2, Calendar, DollarSign, Tag, Clock, Edit, Save, ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { Plus, Calculator as CalcIcon, Trash2, Calendar, Tag, Clock, Edit, Save, ChevronLeft, ChevronRight, Check, X, AlertTriangle } from 'lucide-react';
 import type { Custo } from '../types/db';
-import { format, isAfter, parseISO, addMonths, subMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { format, parseISO, addMonths, subMonths, startOfMonth, endOfMonth, isWithinInterval, differenceInMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+// Type for installment preview
+interface ParcelaPreview {
+    mes: string;
+    data: string;
+    valor: number;
+}
 
 export const Custos = () => {
     const { user } = useAuth();
@@ -17,13 +24,29 @@ export const Custos = () => {
     // Form State
     const [titulo, setTitulo] = useState('');
     const [categoria, setCategoria] = useState('Fixa');
-    const [valor, setValor] = useState<string>(''); // String to handle inputs better
+    const [valor, setValor] = useState<string>('');
     const [dataPagamento, setDataPagamento] = useState(new Date().toISOString().split('T')[0]);
+    const [dataFinal, setDataFinal] = useState(''); // New: end date for fixed expenses
     const [dataValidade, setDataValidade] = useState('');
     const [isVariavel, setIsVariavel] = useState(false);
 
     // Edit State
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [editingGrupoId, setEditingGrupoId] = useState<string | null>(null);
+
+    // Modal States
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [showParcelasModal, setShowParcelasModal] = useState(false);
+    const [parcelas, setParcelas] = useState<ParcelaPreview[]>([]);
+    const [pendingPayload, setPendingPayload] = useState<any>(null);
+
+    // Delete confirmation
+    const [deleteTarget, setDeleteTarget] = useState<Custo | null>(null);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+    // Update confirmation
+    const [showUpdateModal, setShowUpdateModal] = useState(false);
+    const [pendingUpdate, setPendingUpdate] = useState<any>(null);
 
     useEffect(() => {
         fetchCustos();
@@ -37,8 +60,6 @@ export const Custos = () => {
                 .order('data_pagamento', { ascending: false });
 
             if (error) throw error;
-
-            if (error) throw error;
             setCustos(data || []);
         } catch (error) {
             console.error('Erro ao buscar custos:', error);
@@ -47,45 +68,217 @@ export const Custos = () => {
         }
     };
 
+    const generateParcelas = (startDate: string, endDate: string, valorBase: number): ParcelaPreview[] => {
+        const start = parseISO(startDate);
+        const end = parseISO(endDate);
+        const months = differenceInMonths(end, start) + 1;
+
+        const result: ParcelaPreview[] = [];
+        for (let i = 0; i < months; i++) {
+            const parcelaDate = addMonths(start, i);
+            result.push({
+                mes: format(parcelaDate, 'MMM/yyyy', { locale: ptBR }).toUpperCase(),
+                data: format(parcelaDate, 'yyyy-MM-dd'),
+                valor: valorBase
+            });
+        }
+        return result;
+    };
+
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user || !valor || !titulo) return;
 
+        const valorNum = parseFloat(valor);
+
+        // If editing existing record
+        if (editingId) {
+            await handleUpdate();
+            return;
+        }
+
+        // If fixed expense with end date, generate installments
+        if (!isVariavel && dataFinal) {
+            const parcelasGeradas = generateParcelas(dataPagamento, dataFinal, valorNum);
+
+            if (parcelasGeradas.length > 1) {
+                setParcelas(parcelasGeradas);
+                setPendingPayload({
+                    user_id: user.id,
+                    titulo,
+                    categoria: 'Fixa',
+                    recorrente: true,
+                    data_validade: dataFinal
+                });
+                setShowConfirmModal(true);
+                return;
+            }
+        }
+
+        // Single expense (variable or fixed without end date)
         try {
             const payload = {
                 user_id: user.id,
                 titulo,
                 categoria: isVariavel ? 'Variável' : 'Fixa',
-                valor: parseFloat(valor),
+                valor: valorNum,
                 data_pagamento: dataPagamento,
                 data_validade: isVariavel && dataValidade ? dataValidade : null,
                 recorrente: !isVariavel
             };
 
-            let error;
-
-            if (editingId) {
-                // Update existing record
-                const { error: updateError } = await supabase
-                    .from('custos')
-                    .update(payload)
-                    .eq('id', editingId);
-                error = updateError;
-            } else {
-                // Insert new record
-                const { error: insertError } = await supabase
-                    .from('custos')
-                    .insert(payload);
-                error = insertError;
-            }
-
+            const { error } = await supabase.from('custos').insert(payload);
             if (error) throw error;
 
-            // Reset Form
             resetForm();
             fetchCustos();
         } catch (error) {
             alert('Erro ao salvar custo');
+            console.error(error);
+        }
+    };
+
+    const handleConfirmSameValues = async () => {
+        // User confirmed all installments have same value - create them
+        if (!pendingPayload || !user) return;
+
+        try {
+            const grupoId = crypto.randomUUID();
+            const totalParcelas = parcelas.length;
+
+            const records = parcelas.map((p, index) => ({
+                ...pendingPayload,
+                valor: p.valor,
+                data_pagamento: p.data,
+                grupo_id: grupoId,
+                parcela_numero: index + 1,
+                total_parcelas: totalParcelas
+            }));
+
+            const { error } = await supabase.from('custos').insert(records);
+            if (error) throw error;
+
+            setShowConfirmModal(false);
+            setParcelas([]);
+            setPendingPayload(null);
+            resetForm();
+            fetchCustos();
+        } catch (error) {
+            alert('Erro ao criar parcelas');
+            console.error(error);
+        }
+    };
+
+    const handleShowCustomValues = () => {
+        setShowConfirmModal(false);
+        setShowParcelasModal(true);
+    };
+
+    const handleConfirmCustomValues = async () => {
+        if (!pendingPayload || !user) return;
+
+        try {
+            const grupoId = crypto.randomUUID();
+            const totalParcelas = parcelas.length;
+
+            const records = parcelas.map((p, index) => ({
+                ...pendingPayload,
+                valor: p.valor,
+                data_pagamento: p.data,
+                grupo_id: grupoId,
+                parcela_numero: index + 1,
+                total_parcelas: totalParcelas
+            }));
+
+            const { error } = await supabase.from('custos').insert(records);
+            if (error) throw error;
+
+            setShowParcelasModal(false);
+            setParcelas([]);
+            setPendingPayload(null);
+            resetForm();
+            fetchCustos();
+        } catch (error) {
+            alert('Erro ao criar parcelas');
+            console.error(error);
+        }
+    };
+
+    const handleUpdate = async () => {
+        if (!editingId || !user) return;
+
+        const valorNum = parseFloat(valor);
+        const payload = {
+            titulo,
+            categoria: isVariavel ? 'Variável' : 'Fixa',
+            valor: valorNum,
+            data_pagamento: dataPagamento,
+            data_validade: isVariavel && dataValidade ? dataValidade : null,
+            recorrente: !isVariavel
+        };
+
+        // Check if part of a group and value changed
+        if (editingGrupoId) {
+            const originalCusto = custos.find(c => c.id === editingId);
+            if (originalCusto && originalCusto.valor !== valorNum) {
+                setPendingUpdate({ payload, id: editingId, grupoId: editingGrupoId });
+                setShowUpdateModal(true);
+                return;
+            }
+        }
+
+        // Just update this one
+        try {
+            const { error } = await supabase
+                .from('custos')
+                .update(payload)
+                .eq('id', editingId);
+
+            if (error) throw error;
+            resetForm();
+            fetchCustos();
+        } catch (error) {
+            alert('Erro ao atualizar custo');
+            console.error(error);
+        }
+    };
+
+    const handleUpdateOnlyThis = async () => {
+        if (!pendingUpdate) return;
+
+        try {
+            const { error } = await supabase
+                .from('custos')
+                .update(pendingUpdate.payload)
+                .eq('id', pendingUpdate.id);
+
+            if (error) throw error;
+            setShowUpdateModal(false);
+            setPendingUpdate(null);
+            resetForm();
+            fetchCustos();
+        } catch (error) {
+            alert('Erro ao atualizar');
+            console.error(error);
+        }
+    };
+
+    const handleUpdateAll = async () => {
+        if (!pendingUpdate) return;
+
+        try {
+            const { error } = await supabase
+                .from('custos')
+                .update({ valor: pendingUpdate.payload.valor })
+                .eq('grupo_id', pendingUpdate.grupoId);
+
+            if (error) throw error;
+            setShowUpdateModal(false);
+            setPendingUpdate(null);
+            resetForm();
+            fetchCustos();
+        } catch (error) {
+            alert('Erro ao atualizar todas');
             console.error(error);
         }
     };
@@ -95,25 +288,35 @@ export const Custos = () => {
         setValor('');
         setIsVariavel(false);
         setDataValidade('');
+        setDataFinal('');
         setCategoria('Fixa');
         setEditingId(null);
+        setEditingGrupoId(null);
         setDataPagamento(new Date().toISOString().split('T')[0]);
     };
 
     const handleEdit = (custo: Custo) => {
         setEditingId(custo.id);
+        setEditingGrupoId(custo.grupo_id || null);
         setTitulo(custo.titulo);
         setValor(String(custo.valor));
         setCategoria(custo.categoria);
         setIsVariavel(custo.categoria === 'Variável');
         setDataPagamento(custo.data_pagamento);
         setDataValidade(custo.data_validade || '');
-
-        // Scroll to form (mobile UX)
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const handleDelete = async (id: string) => {
+    const handleDeleteClick = (custo: Custo) => {
+        setDeleteTarget(custo);
+        if (custo.grupo_id) {
+            setShowDeleteModal(true);
+        } else {
+            handleDeleteSingle(custo.id);
+        }
+    };
+
+    const handleDeleteSingle = async (id: string) => {
         if (!confirm('Tem certeza que deseja apagar este custo?')) return;
         try {
             await supabase.from('custos').delete().eq('id', id);
@@ -122,6 +325,23 @@ export const Custos = () => {
         } catch (error) {
             console.error(error);
         }
+        setShowDeleteModal(false);
+        setDeleteTarget(null);
+    };
+
+    const handleDeleteAll = async () => {
+        if (!deleteTarget?.grupo_id) return;
+        try {
+            await supabase.from('custos').delete().eq('grupo_id', deleteTarget.grupo_id);
+            setCustos(custos.filter(c => c.grupo_id !== deleteTarget.grupo_id));
+            if (editingId && custos.find(c => c.id === editingId)?.grupo_id === deleteTarget.grupo_id) {
+                resetForm();
+            }
+        } catch (error) {
+            console.error(error);
+        }
+        setShowDeleteModal(false);
+        setDeleteTarget(null);
     };
 
     const handleCalculatorConfirm = (finalValue: number) => {
@@ -148,8 +368,6 @@ export const Custos = () => {
                 .eq('id', custo.id);
 
             if (error) throw error;
-
-            // Local update
             setCustos(curr => curr.map(c => c.id === custo.id ? { ...c, pago: novoStatus } : c));
         } catch (error) {
             console.error('Erro ao atualizar', error);
@@ -164,6 +382,158 @@ export const Custos = () => {
                     onConfirm={handleCalculatorConfirm}
                     initialValue={Number(valor) || 0}
                 />
+            )}
+
+            {/* Modal: Confirm Same Values */}
+            {showConfirmModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in">
+                        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                            <AlertTriangle className="text-amber-500" size={24} />
+                            Confirmar Parcelas
+                        </h3>
+                        <p className="text-slate-600 mb-4">
+                            Serão criadas <span className="font-bold text-[var(--primary)]">{parcelas.length} parcelas</span> de{' '}
+                            <span className="font-bold">R$ {parseFloat(valor).toFixed(2)}</span> cada.
+                        </p>
+                        <p className="text-slate-600 mb-6">Todas as parcelas terão o mesmo valor?</p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => { setShowConfirmModal(false); setParcelas([]); setPendingPayload(null); }}
+                                className="flex-1 px-4 py-2.5 bg-slate-100 rounded-lg font-medium text-slate-700 border border-slate-200"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleShowCustomValues}
+                                className="flex-1 px-4 py-2.5 bg-amber-500 rounded-lg font-medium text-white"
+                            >
+                                Não, ajustar
+                            </button>
+                            <button
+                                onClick={handleConfirmSameValues}
+                                className="flex-1 px-4 py-2.5 bg-emerald-600 rounded-lg font-medium text-white"
+                            >
+                                Sim, criar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Custom Values per Installment */}
+            {showParcelasModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 animate-in fade-in zoom-in max-h-[80vh] overflow-auto">
+                        <h3 className="text-lg font-bold mb-4">Ajuste os valores por parcela</h3>
+                        <div className="space-y-3 mb-6">
+                            {parcelas.map((p, index) => (
+                                <div key={index} className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg">
+                                    <span className="font-medium text-slate-700 w-24">{p.mes}</span>
+                                    <div className="relative flex-1">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">R$</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            className="w-full pl-10 p-2 border border-slate-200 rounded-lg font-medium"
+                                            value={p.valor}
+                                            onChange={e => {
+                                                const newParcelas = [...parcelas];
+                                                newParcelas[index].valor = parseFloat(e.target.value) || 0;
+                                                setParcelas(newParcelas);
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => { setShowParcelasModal(false); setParcelas([]); setPendingPayload(null); }}
+                                className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium text-slate-700"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleConfirmCustomValues}
+                                className="flex-1 px-4 py-2 bg-[var(--primary)] hover:bg-[var(--primary-dark)] rounded-lg font-medium text-white"
+                            >
+                                Confirmar e Criar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Delete Confirmation */}
+            {showDeleteModal && deleteTarget && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in">
+                        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                            <Trash2 className="text-red-500" size={24} />
+                            Excluir Parcela
+                        </h3>
+                        <p className="text-slate-600 mb-6">
+                            Esta parcela faz parte de um grupo de <span className="font-bold">{deleteTarget.total_parcelas} parcelas</span>.
+                            Deseja excluir apenas esta ou todas?
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }}
+                                className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium text-slate-700"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={() => handleDeleteSingle(deleteTarget.id)}
+                                className="flex-1 px-4 py-2 bg-amber-100 hover:bg-amber-200 rounded-lg font-medium text-amber-800"
+                            >
+                                Apenas esta
+                            </button>
+                            <button
+                                onClick={handleDeleteAll}
+                                className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg font-medium text-white"
+                            >
+                                Todas ({deleteTarget.total_parcelas})
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Update Confirmation */}
+            {showUpdateModal && pendingUpdate && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in">
+                        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                            <Edit className="text-indigo-500" size={24} />
+                            Atualizar Valor
+                        </h3>
+                        <p className="text-slate-600 mb-6">
+                            Você alterou o valor desta parcela. Deseja atualizar o valor para as outras parcelas deste grupo também?
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => { setShowUpdateModal(false); setPendingUpdate(null); }}
+                                className="flex-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium text-slate-700"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleUpdateOnlyThis}
+                                className="flex-1 px-4 py-2 bg-amber-100 hover:bg-amber-200 rounded-lg font-medium text-amber-800"
+                            >
+                                Apenas esta
+                            </button>
+                            <button
+                                onClick={handleUpdateAll}
+                                className="flex-1 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg font-medium text-white"
+                            >
+                                Todas
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -212,7 +582,9 @@ export const Custos = () => {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Vencimento</label>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                                        {!isVariavel && dataFinal ? 'Primeiro Vencimento' : 'Vencimento'}
+                                    </label>
                                     <input
                                         type="date"
                                         className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none"
@@ -222,6 +594,26 @@ export const Custos = () => {
                                     />
                                 </div>
                             </div>
+
+                            {/* Fixed expense: End date for installments */}
+                            {!isVariavel && !editingId && (
+                                <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg animate-in fade-in slide-in-from-top-2">
+                                    <label className="block text-xs font-bold text-blue-800 mb-1 flex items-center gap-1">
+                                        <Calendar size={12} />
+                                        Última Parcela (opcional)
+                                    </label>
+                                    <input
+                                        type="date"
+                                        className="w-full p-2 bg-white border border-blue-200 rounded text-sm text-blue-900"
+                                        value={dataFinal}
+                                        onChange={e => setDataFinal(e.target.value)}
+                                        min={dataPagamento}
+                                    />
+                                    <p className="text-[10px] text-blue-600 mt-1">
+                                        Se preenchido, cria parcelas automáticas até esta data.
+                                    </p>
+                                </div>
+                            )}
 
                             {isVariavel && (
                                 <div className="p-3 bg-orange-50 border border-orange-100 rounded-lg animate-in fade-in slide-in-from-top-2">
@@ -329,14 +721,21 @@ export const Custos = () => {
                                         {custo.categoria === 'Fixa' ? 'F' : 'V'}
                                     </div>
                                     <div>
-                                        <h3 className="font-bold text-slate-900">{custo.titulo}</h3>
+                                        <h3 className="font-bold text-slate-900">
+                                            {custo.titulo}
+                                            {custo.parcela_numero && custo.total_parcelas && (
+                                                <span className="ml-2 text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                                                    {custo.parcela_numero}/{custo.total_parcelas}
+                                                </span>
+                                            )}
+                                        </h3>
                                         <div className="flex items-center gap-3 text-sm text-slate-500 mt-0.5">
                                             <span className="flex items-center gap-1">
                                                 <Calendar size={14} />
                                                 {format(parseISO(custo.data_pagamento), 'dd/MM/yyyy')}
                                             </span>
                                             {custo.data_validade && (
-                                                <span className="flex items-center gap-1 text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded textxs">
+                                                <span className="flex items-center gap-1 text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded text-xs">
                                                     <Clock size={12} />
                                                     Expira: {format(parseISO(custo.data_validade), 'dd/MM')}
                                                 </span>
@@ -358,7 +757,7 @@ export const Custos = () => {
                                             <Edit size={18} />
                                         </button>
                                         <button
-                                            onClick={() => handleDelete(custo.id)}
+                                            onClick={() => handleDeleteClick(custo)}
                                             className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                                             title="Excluir"
                                         >

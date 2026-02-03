@@ -74,7 +74,8 @@ const CalendarView = () => {
         medicamentos: '',
         procedure_id: '',
         valor: '',
-        payment_method: 'none'
+        payment_method: 'none',
+        installments: 1
     });
 
     // Mapped State
@@ -468,6 +469,7 @@ const CalendarView = () => {
                     procedimento: finalProcedureId ? (procedures.find(p => p.id === finalProcedureId)?.name || '') : '', // Save Name Snapshot
                     recorded_commission: commission,
                     payment_method: completionForm.payment_method, // Fix: Save Payment Method
+                    installments: completionForm.payment_method === 'card' ? completionForm.installments : 1, // Fix: 1 for others (A vista)
                     queixa: completionForm.queixa,
                     evolucao: completionForm.evolucao,
                     medicamentos: completionForm.medicamentos,
@@ -773,6 +775,23 @@ const CalendarView = () => {
                                         <option value="warranty">Garantia / Retrabalho (R$ 0,00)</option>
                                     </select>
                                 </div>
+
+                                {/* Installments Input (Only for Card) */}
+                                {completionForm.payment_method === 'card' && (
+                                    <div className="animate-in fade-in slide-in-from-top-2">
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">Parcelas</label>
+                                        <select
+                                            className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-white"
+                                            value={completionForm.installments || 1}
+                                            onChange={e => setCompletionForm({ ...completionForm, installments: parseInt(e.target.value) })}
+                                        >
+                                            <option value={1}>À vista (1x)</option>
+                                            {[...Array(11)].map((_, i) => (
+                                                <option key={i + 2} value={i + 2}>{i + 2}x</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1">Valor Cobrado (R$)</label>
                                     <input

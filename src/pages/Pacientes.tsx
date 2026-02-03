@@ -1,18 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Search, Phone, Calendar, ArrowLeft, FileText, Activity, Pill, DollarSign, Clock, Stethoscope, Trash2, Edit, MessageCircle, Paperclip, Printer, User, X, Shield } from 'lucide-react';
-import type { Paciente, Consulta } from '../types/db';
+import { Plus, Search, Phone, Calendar, ArrowLeft, FileText, Activity, Pill, DollarSign, Clock, Stethoscope, Trash2, Edit, MessageCircle, Paperclip, Printer, User, X, Shield, History, RotateCcw, AlertTriangle } from 'lucide-react';
+import type { Paciente, Consulta, Anamnese } from '../types/db';
 import { format, parseISO, differenceInYears } from 'date-fns';
 import { PatientAttachments } from '../components/PatientAttachments';
+import { PatientAnamnese } from '../components/PatientAnamnese';
 import { PatientPrintView, printPatientRecord } from '../components/PatientPrintView';
 
 export const Pacientes = () => {
     const { user, profile } = useAuth(); // Destructure profile
 
     // View State: 'list' | 'details'
-    const [view, setView] = useState<'list' | 'details'>('list');
-    const [activeTab, setActiveTab] = useState<'history' | 'attachments'>('history');
+    const [view, setView] = useState<'list' | 'details' | 'trash'>('list');
+    const [activeTab, setActiveTab] = useState<'history' | 'attachments' | 'anamnese'>('history');
     const [selectedPaciente, setSelectedPaciente] = useState<Paciente | null>(null);
 
     // Data State
@@ -21,6 +22,7 @@ export const Pacientes = () => {
     const [teamNames, setTeamNames] = useState<Record<string, string>>({}); // ID -> Username
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [trashPacientes, setTrashPacientes] = useState<Paciente[]>([]);
 
     // Patient Form State (Create & Edit)
     const [showNewPatientForm, setShowNewPatientForm] = useState(false);
@@ -74,6 +76,7 @@ export const Pacientes = () => {
             const { data, error } = await supabase
                 .from('pacientes')
                 .select('*')
+                .is('deleted_at', null) // Filter out soft-deleted
                 // RLS filters this automatically, but explicitly:
                 // .or(`owner_id.eq.${user?.id},owner_id.eq.${profile?.owner_id}`)
                 // Trusting RLS here for simplicity
@@ -100,6 +103,24 @@ export const Pacientes = () => {
             console.error('Erro ao buscar consultas:', error);
         }
     };
+
+    const fetchTrash = async () => {
+        try {
+            const { data } = await supabase
+                .from('pacientes')
+                .select('*')
+                .not('deleted_at', 'is', null)
+                .order('deleted_at', { ascending: false });
+
+            setTrashPacientes(data || []);
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    useEffect(() => {
+        if (view === 'trash') fetchTrash();
+    }, [view]);
 
     // --- Patient Actions ---
 
@@ -140,17 +161,60 @@ export const Pacientes = () => {
         }
     };
 
-    const handleDeletePaciente = async (e: React.MouseEvent, id: string) => {
-        e.stopPropagation();
-        if (!confirm('Tem certeza? Isso apagará o paciente e TODO o histórico de consultas dele.')) return;
+    const handleDeletePaciente = async () => {
+        if (!selectedPaciente) return;
+        if (!confirm('Tem certeza que deseja mover este paciente para a Lixeira?')) return;
 
         try {
-            const { error } = await supabase.from('pacientes').delete().eq('id', id);
+            const { error } = await supabase
+                .from('pacientes')
+                .update({ deleted_at: new Date().toISOString() })
+                .eq('id', selectedPaciente.id);
+
             if (error) throw error;
-            setPacientes(pacientes.filter(p => p.id !== id));
+
+            setPacientes(pacientes.filter(p => p.id !== selectedPaciente.id));
+            setSelectedPaciente(null);
+            setView('list');
+            alert('Paciente movido para a Lixeira.');
         } catch (error) {
             console.error(error);
             alert('Erro ao excluir paciente.');
+        }
+    };
+
+    const handleRestorePaciente = async (paciente: Paciente) => {
+        try {
+            const { error } = await supabase
+                .from('pacientes')
+                .update({ deleted_at: null })
+                .eq('id', paciente.id);
+
+            if (error) throw error;
+            fetchPacientes();
+            fetchTrash();
+            alert('Paciente restaurado com sucesso!');
+        } catch (error) {
+            console.error(error);
+            alert('Erro ao restaurar paciente.');
+        }
+    };
+
+    const handlePermanentDelete = async (paciente: Paciente) => {
+        if (!confirm('ATENÇÃO: Isso excluirá PERMANENTEMENTE o paciente e TODOS os dados associados. Esta ação NÃO pode ser desfeita. Tem certeza?')) return;
+
+        try {
+            const { error } = await supabase
+                .from('pacientes')
+                .delete()
+                .eq('id', paciente.id);
+
+            if (error) throw error;
+            fetchTrash();
+            alert('Paciente excluído permanentemente.');
+        } catch (error) {
+            console.error(error);
+            alert('Erro ao excluir permanentemente.');
         }
     };
 
@@ -258,6 +322,74 @@ export const Pacientes = () => {
 
     // --- RENDER ---
 
+    if (view === 'trash') {
+        return (
+            <div className="max-w-5xl mx-auto space-y-6 pb-20">
+                <div className="flex items-center gap-4">
+                    <button onClick={() => setView('list')} className="bg-white p-2 rounded-full shadow-sm hover:translate-x-1 transition-transform border border-slate-100 text-slate-500">
+                        <ArrowLeft size={20} />
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                            <Trash2 className="text-red-500" /> Lixeira (Pacientes Excluídos)
+                        </h1>
+                        <p className="text-slate-500">Pacientes excluídos podem ser restaurados</p>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    {trashPacientes.length === 0 ? (
+                        <div className="p-10 text-center text-slate-400">
+                            <Trash2 size={48} className="mx-auto mb-4 opacity-50" />
+                            <p>A lixeira está vazia.</p>
+                        </div>
+                    ) : (
+                        <table className="w-full text-left">
+                            <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
+                                <tr>
+                                    <th className="p-4">Paciente</th>
+                                    <th className="p-4">Telefone</th>
+                                    <th className="p-4">Excluído em</th>
+                                    <th className="p-4 text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {trashPacientes.map(p => (
+                                    <tr key={p.id} className="hover:bg-slate-50">
+                                        <td className="p-4 font-medium text-slate-800">{p.nome}</td>
+                                        <td className="p-4 text-slate-500">{p.telefone || '-'}</td>
+                                        <td className="p-4 text-slate-500">{p.deleted_at ? format(parseISO(p.deleted_at), 'dd/MM/yyyy HH:mm') : '-'}</td>
+                                        <td className="p-4 flex items-center justify-end gap-2">
+                                            <button
+                                                onClick={() => handleRestorePaciente(p)}
+                                                className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
+                                            >
+                                                <RotateCcw size={14} /> Restaurar
+                                            </button>
+                                            <button
+                                                onClick={() => handlePermanentDelete(p)}
+                                                className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg text-xs font-bold transition-colors"
+                                            >
+                                                <X size={14} /> Excluir Definitivamente
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+                <div className="flex gap-2 items-start bg-amber-50 p-4 rounded-lg text-amber-800 text-sm border border-amber-200">
+                    <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+                    <div>
+                        <p className="font-bold">Atenção:</p>
+                        <p>Ao "Excluir Definitivamente", todos os dados (histórico, anexos, anamneses) serão apagados para sempre.</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     if (view === 'list') {
         return (
             <div className="max-w-5xl mx-auto space-y-6 pb-20 print:hidden">
@@ -266,15 +398,23 @@ export const Pacientes = () => {
                         <h1 className="text-2xl font-bold text-slate-900">Pacientes</h1>
                         <p className="text-slate-500">Gestão de prontuários e atendimentos</p>
                     </div>
-                    <button
-                        onClick={() => {
-                            resetPacienteForm();
-                            setShowNewPatientForm(!showNewPatientForm);
-                        }}
-                        className={`btn ${showNewPatientForm ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'btn-primary'}`}
-                    >
-                        {showNewPatientForm ? <div className="flex items-center gap-2">Cancelar</div> : <div className="flex items-center gap-2"><Plus size={20} /> Novo Paciente</div>}
-                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setView('trash')}
+                            className="bg-white hover:bg-slate-50 text-slate-600 px-4 py-2 rounded-xl flex items-center gap-2 transition-all shadow-sm border border-slate-200 font-medium"
+                        >
+                            <Trash2 size={18} /> Lixeira
+                        </button>
+                        <button
+                            onClick={() => {
+                                resetPacienteForm();
+                                setShowNewPatientForm(!showNewPatientForm);
+                            }}
+                            className={`btn ${showNewPatientForm ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'btn-primary'}`}
+                        >
+                            {showNewPatientForm ? <div className="flex items-center gap-2">Cancelar</div> : <div className="flex items-center gap-2"><Plus size={20} /> Novo Paciente</div>}
+                        </button>
+                    </div>
                 </div>
 
                 {/* New/Edit Patient Form (Collapsible) */}
@@ -388,13 +528,6 @@ export const Pacientes = () => {
                                         >
                                             <Edit size={16} />
                                         </button>
-                                        <button
-                                            onClick={(e) => handleDeletePaciente(e, paciente.id)}
-                                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                            title="Excluir"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
                                         <div className="text-slate-300 pl-2">
                                             ➤
                                         </div>
@@ -451,6 +584,12 @@ export const Pacientes = () => {
 
                         {/* Actions */}
                         <div className="flex items-center gap-2 w-full md:w-auto">
+                            <button
+                                onClick={handleDeletePaciente}
+                                className="btn bg-red-500 text-white hover:bg-red-600 flex items-center justify-center gap-2"
+                            >
+                                <Trash2 size={16} /> Excluir
+                            </button>
                             <button
                                 onClick={printPatientRecord}
                                 className="btn bg-slate-800 text-white hover:bg-slate-900 flex items-center justify-center gap-2 w-full md:w-auto"
@@ -579,10 +718,23 @@ export const Pacientes = () => {
                                         <Paperclip size={16} /> Anexos
                                     </div>
                                 </button>
+                                <button
+                                    onClick={() => setActiveTab('anamnese')}
+                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'anamnese'
+                                        ? 'bg-white text-[var(--primary)] shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Stethoscope size={16} /> Anamnese
+                                    </div>
+                                </button>
                             </div>
 
                             {activeTab === 'attachments' ? (
                                 <PatientAttachments patientId={selectedPaciente.id} />
+                            ) : activeTab === 'anamnese' ? (
+                                <PatientAnamnese patientId={selectedPaciente.id} />
                             ) : (
                                 <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
                                     {consultas.length === 0 ? (
