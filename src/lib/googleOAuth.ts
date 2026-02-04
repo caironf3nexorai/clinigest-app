@@ -31,7 +31,15 @@ export async function exchangeCodeForTokens(
 
     if (error) {
         console.error('Edge function error:', error);
-        throw new Error(error.message || 'Failed to exchange code for tokens');
+        // Try to extract more detailed error from context
+        const errorMsg = error.context?.body?.error || error.message || 'Failed to exchange code for tokens';
+        throw new Error(errorMsg);
+    }
+
+    // Check if data contains an error
+    if (data?.error) {
+        console.error('Edge function returned error:', data.error);
+        throw new Error(data.error);
     }
 
     return data;
