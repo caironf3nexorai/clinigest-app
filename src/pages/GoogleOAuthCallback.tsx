@@ -44,8 +44,12 @@ export default function GoogleOAuthCallback() {
                 // Get the redirect URI (current origin + callback path)
                 const redirectUri = `${window.location.origin}/oauth/google/callback`;
 
+                console.log('Exchanging code for tokens...', { redirectUri, userId: user.id });
+
                 // Exchange code for tokens via Edge Function
                 const tokens = await exchangeCodeForTokens(code, redirectUri, user.id);
+
+                console.log('Token exchange response:', tokens);
 
                 if (tokens.access_token) {
                     // Store in localStorage for immediate use
@@ -57,16 +61,20 @@ export default function GoogleOAuthCallback() {
                         navigate('/agenda', { replace: true });
                     }, 2000);
                 } else {
-                    throw new Error('Tokens não retornados');
+                    throw new Error(tokens.error || 'Tokens não retornados');
                 }
             } catch (err: any) {
                 console.error('Token exchange failed:', err);
                 setStatus('error');
-                setErrorMessage(err.message || 'Erro ao trocar código por tokens.');
+                // Show more detailed error
+                const errorMsg = err.message || 'Erro ao trocar código por tokens.';
+                setErrorMessage(errorMsg);
             }
         };
 
-        handleCallback();
+        // Small delay to ensure session is fully restored after redirect
+        const timer = setTimeout(handleCallback, 500);
+        return () => clearTimeout(timer);
     }, [searchParams, user, navigate]);
 
     return (

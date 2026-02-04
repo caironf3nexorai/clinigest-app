@@ -21,13 +21,27 @@ export async function exchangeCodeForTokens(
     redirectUri: string,
     userId: string
 ): Promise<TokenResponse> {
-    const { data: { session } } = await supabase.auth.getSession();
+    // Wait for session to be available (may not be ready immediately after redirect)
+    let session = null;
+    for (let i = 0; i < 5; i++) {
+        const { data } = await supabase.auth.getSession();
+        session = data.session;
+        if (session?.access_token) break;
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    // Use anon key as fallback if session not available
+    const SUPABASE_ANON_KEY = (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
+    const authHeader = session?.access_token
+        ? `Bearer ${session.access_token}`
+        : `Bearer ${SUPABASE_ANON_KEY}`;
 
     const response = await fetch(EDGE_FUNCTION_URL, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token}`,
+            'Authorization': authHeader,
+            'apikey': SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({
             action: 'exchange',
