@@ -64,16 +64,35 @@ export async function exchangeCodeForTokens(
  * This is the main function to call before making Google API requests
  */
 export async function getValidToken(userId: string): Promise<TokenResponse> {
-    const { data, error } = await supabase.functions.invoke('google-oauth', {
-        body: {
+    const SUPABASE_URL = (import.meta as any).env.VITE_SUPABASE_URL;
+    const SUPABASE_ANON_KEY = (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
+    const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/google-oauth`;
+
+    const response = await fetch(EDGE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'apikey': SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
             action: 'get-token',
             userId,
-        },
+        }),
     });
 
-    if (error) {
-        console.error('Edge function error:', error);
-        throw new Error(error.message || 'Failed to get valid token');
+    const data = await response.json();
+
+    if (!response.ok) {
+        // Allow needs_reconnect to pass through without throwing
+        if (data && data.needs_reconnect) {
+            return data;
+        }
+        throw new Error(data.error || 'Failed to get valid token');
+    }
+
+    if (data?.error && !data?.needs_reconnect) {
+        throw new Error(data.error);
     }
 
     return data;
@@ -83,16 +102,34 @@ export async function getValidToken(userId: string): Promise<TokenResponse> {
  * Manually refresh the access token
  */
 export async function refreshToken(userId: string): Promise<TokenResponse> {
-    const { data, error } = await supabase.functions.invoke('google-oauth', {
-        body: {
+    const SUPABASE_URL = (import.meta as any).env.VITE_SUPABASE_URL;
+    const SUPABASE_ANON_KEY = (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
+    const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/google-oauth`;
+
+    const response = await fetch(EDGE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'apikey': SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
             action: 'refresh',
             userId,
-        },
+        }),
     });
 
-    if (error) {
-        console.error('Edge function error:', error);
-        throw new Error(error.message || 'Failed to refresh token');
+    const data = await response.json();
+
+    if (!response.ok) {
+        if (data && data.needs_reconnect) {
+            return data;
+        }
+        throw new Error(data.error || 'Failed to refresh token');
+    }
+
+    if (data?.error && !data?.needs_reconnect) {
+        throw new Error(data.error);
     }
 
     return data;
