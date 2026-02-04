@@ -19,7 +19,20 @@ export async function exchangeCodeForTokens(
     redirectUri: string,
     userId: string
 ): Promise<TokenResponse> {
+    // Ensure session is refreshed after redirect
+    console.log('🔄 Refreshing session...');
+    await supabase.auth.refreshSession();
+
+    // Wait a bit for session to be fully available
+    const { data: sessionData } = await supabase.auth.getSession();
+    console.log('📋 Session available:', !!sessionData?.session?.access_token);
+
+    if (!sessionData?.session) {
+        throw new Error('Sessão não disponível. Faça login novamente.');
+    }
+
     // Use supabase.functions.invoke for proper authentication
+    console.log('📡 Calling Edge Function...');
     const { data, error } = await supabase.functions.invoke('google-oauth', {
         body: {
             action: 'exchange',
