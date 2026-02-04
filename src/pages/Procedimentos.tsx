@@ -132,48 +132,88 @@ export const Procedimentos = () => {
                 </div>
             ) : (
                 <div className="bg-[var(--surface)] rounded-xl shadow-sm border border-[var(--border)] overflow-hidden">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-gray-50 text-gray-500 font-medium">
-                            <tr>
-                                <th className="px-6 py-4">Nome</th>
-                                <th className="px-6 py-4">Preço (R$)</th>
-                                <th className="px-6 py-4">Custo Lab. (R$)</th>
+                    {procedures.length === 0 ? (
+                        <div className="px-6 py-8 text-center text-gray-400">
+                            Nenhum procedimento cadastrado. Clique em "Novo Procedimento" para começar.
+                        </div>
+                    ) : (
+                        <>
+                            {/* Desktop Table View */}
+                            <table className="hidden md:table w-full text-sm text-left">
+                                <thead className="bg-gray-50 text-gray-500 font-medium">
+                                    <tr>
+                                        <th className="px-6 py-4">Nome</th>
+                                        <th className="px-6 py-4">Preço (R$)</th>
+                                        <th className="px-6 py-4">Custo Lab. (R$)</th>
+                                        <th className="px-6 py-4 text-right">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-[var(--border)]">
+                                    {procedures.map(proc => (
+                                        <tr key={proc.id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4 font-medium">{proc.name}</td>
+                                            <td className="px-6 py-4 text-green-600 font-medium">
+                                                R$ {proc.price.toFixed(2)}
+                                            </td>
+                                            <td className="px-6 py-4 text-red-400">
+                                                R$ {proc.lab_cost?.toFixed(2) || '0.00'}
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button onClick={() => handleOpenModal(proc)} className="p-1 text-gray-500 hover:text-[var(--primary)]">
+                                                        <Edit size={16} />
+                                                    </button>
+                                                    <button onClick={() => handleDelete(proc.id)} className="p-1 text-gray-500 hover:text-red-600">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
 
-                                <th className="px-6 py-4 text-right">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[var(--border)]">
-                            {procedures.map(proc => (
-                                <tr key={proc.id} className="hover:bg-gray-50">
-                                    <td className="px-6 py-4 font-medium">{proc.name}</td>
-                                    <td className="px-6 py-4 text-green-600 font-medium">
-                                        R$ {proc.price.toFixed(2)}
-                                    </td>
-                                    <td className="px-6 py-4 text-red-400">
-                                        R$ {proc.lab_cost?.toFixed(2) || '0.00'}
-                                    </td>
+                            {/* Mobile Card View */}
+                            <div className="md:hidden divide-y divide-[var(--border)]">
+                                {procedures.map(proc => (
+                                    <div key={proc.id} className="p-4 space-y-3">
+                                        {/* Procedure Name */}
+                                        <div className="font-semibold text-slate-900 text-base">{proc.name}</div>
 
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button onClick={() => handleOpenModal(proc)} className="p-1 text-gray-500 hover:text-[var(--primary)]">
-                                                <Edit size={16} />
+                                        {/* Price Info Grid */}
+                                        <div className="grid grid-cols-2 gap-3 text-sm">
+                                            <div className="bg-green-50 rounded-lg p-3">
+                                                <div className="text-xs text-green-700 font-medium mb-1">Preço</div>
+                                                <div className="text-green-600 font-bold text-lg">R$ {proc.price.toFixed(2)}</div>
+                                            </div>
+                                            <div className="bg-red-50 rounded-lg p-3">
+                                                <div className="text-xs text-red-700 font-medium mb-1">Custo Lab.</div>
+                                                <div className="text-red-500 font-bold text-lg">R$ {proc.lab_cost?.toFixed(2) || '0.00'}</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Action Buttons */}
+                                        <div className="flex gap-2 pt-2">
+                                            <button
+                                                onClick={() => handleOpenModal(proc)}
+                                                className="flex-1 flex items-center justify-center gap-2 bg-[var(--primary)] text-white py-3 px-4 rounded-lg hover:bg-[var(--primary-hover)] transition-colors font-medium min-h-[44px]"
+                                            >
+                                                <Edit size={18} />
+                                                Editar
                                             </button>
-                                            <button onClick={() => handleDelete(proc.id)} className="p-1 text-gray-500 hover:text-red-600">
-                                                <Trash2 size={16} />
+                                            <button
+                                                onClick={() => handleDelete(proc.id)}
+                                                className="flex-1 flex items-center justify-center gap-2 bg-red-50 text-red-600 py-3 px-4 rounded-lg hover:bg-red-100 transition-colors font-medium min-h-[44px]"
+                                            >
+                                                <Trash2 size={18} />
+                                                Excluir
                                             </button>
                                         </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            {procedures.length === 0 && (
-                                <tr>
-                                    <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
-                                        Nenhum procedimento cadastrado.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
 

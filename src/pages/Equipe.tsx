@@ -218,70 +218,144 @@ export const Equipe = () => {
                                     Nenhum membro ativo na equipe.
                                 </div>
                             ) : (
-                                <table className="w-full text-sm">
-                                    <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                                        <tr>
-                                            <th className="px-4 py-3 text-left">Membro</th>
-                                            <th className="px-4 py-3 text-left">Cargo</th>
-                                            <th className="px-4 py-3 text-right">Ações</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {members.map(m => (
-                                            <tr key={m.id} className="hover:bg-slate-50">
-                                                <td className="px-4 py-3">
-                                                    <div className="font-medium text-slate-900">{m.username || 'Sem nome'}</div>
-                                                    <div className="text-xs text-slate-500">{m.email}</div>
-                                                    {m.company_name && <div className="text-[10px] text-slate-400">{m.company_name}</div>}
+                                <>
+                                    {/* Desktop Table View */}
+                                    <table className="hidden md:table w-full text-sm">
+                                        <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                                            <tr>
+                                                <th className="px-4 py-3 text-left">Membro</th>
+                                                <th className="px-4 py-3 text-left">Cargo</th>
+                                                <th className="px-4 py-3 text-right">Ações</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {members.map(m => (
+                                                <tr key={m.id} className="hover:bg-slate-50">
+                                                    <td className="px-4 py-3">
+                                                        <div className="font-medium text-slate-900">{m.username || 'Sem nome'}</div>
+                                                        <div className="text-xs text-slate-500">{m.email}</div>
+                                                        {m.company_name && <div className="text-[10px] text-slate-400">{m.company_name}</div>}
 
-                                                    {/* Calendar Linking UI */}
-                                                    <div className="mt-2">
-                                                        {editingCalendarId === m.id ? (
-                                                            <div className="flex items-center gap-2">
-                                                                <input
-                                                                    type="text"
-                                                                    value={tempCalendarId}
-                                                                    onChange={e => setTempCalendarId(e.target.value)}
-                                                                    placeholder="ID @group.calendar..."
-                                                                    className="text-xs border rounded p-1 w-full max-w-[150px] outline-none focus:border-[var(--primary)]"
-                                                                />
-                                                                <button onClick={() => handleSaveCalendar(m.id)} className="text-green-600 hover:bg-green-50 p-1 rounded"><Check size={14} /></button>
-                                                                <button onClick={() => setEditingCalendarId(null)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={14} /></button>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="flex items-center gap-2 text-xs text-slate-400 group cursor-pointer" onClick={() => {
-                                                                setEditingCalendarId(m.id);
-                                                                setTempCalendarId(m.linked_calendar_id || '');
-                                                            }}>
-                                                                <Calendar size={12} className={m.linked_calendar_id ? "text-green-500" : "text-slate-300"} />
-                                                                {m.linked_calendar_id ? (
-                                                                    <span className="text-green-600 font-medium">Agenda Vinculada</span>
-                                                                ) : (
-                                                                    <span className="group-hover:text-[var(--primary)] transition-colors">Vincular Agenda</span>
-                                                                )}
-                                                            </div>
-                                                        )}
+                                                        {/* Calendar Linking UI */}
+                                                        <div className="mt-2">
+                                                            {editingCalendarId === m.id ? (
+                                                                <div className="flex items-center gap-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={tempCalendarId}
+                                                                        onChange={e => setTempCalendarId(e.target.value)}
+                                                                        placeholder="ID @group.calendar..."
+                                                                        className="text-xs border rounded p-1 w-full max-w-[150px] outline-none focus:border-[var(--primary)]"
+                                                                    />
+                                                                    <button onClick={() => handleSaveCalendar(m.id)} className="text-green-600 hover:bg-green-50 p-1 rounded"><Check size={14} /></button>
+                                                                    <button onClick={() => setEditingCalendarId(null)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={14} /></button>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex items-center gap-2 text-xs text-slate-400 group cursor-pointer" onClick={() => {
+                                                                    setEditingCalendarId(m.id);
+                                                                    setTempCalendarId(m.linked_calendar_id || '');
+                                                                }}>
+                                                                    <Calendar size={12} className={m.linked_calendar_id ? "text-green-500" : "text-slate-300"} />
+                                                                    {m.linked_calendar_id ? (
+                                                                        <span className="text-green-600 font-medium">Agenda Vinculada</span>
+                                                                    ) : (
+                                                                        <span className="group-hover:text-[var(--primary)] transition-colors">Vincular Agenda</span>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${m.role === 'dentist' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                                                            }`}>
+                                                            {m.role === 'dentist' ? 'Dentista' : 'Secretária'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        <button
+                                                            onClick={() => removeMember(m.id)}
+                                                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition"
+                                                            title="Remover da equipe"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+
+                                    {/* Mobile Card View */}
+                                    <div className="md:hidden divide-y divide-slate-100">
+                                        {members.map(m => (
+                                            <div key={m.id} className="p-4 space-y-3">
+                                                {/* Header: Name + Role Badge */}
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-medium text-slate-900 text-base">{m.username || 'Sem nome'}</div>
+                                                        <div className="text-sm text-slate-500 break-all">{m.email}</div>
+                                                        {m.company_name && <div className="text-xs text-slate-400 mt-1">{m.company_name}</div>}
                                                     </div>
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${m.role === 'dentist' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap ${m.role === 'dentist' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
                                                         }`}>
                                                         {m.role === 'dentist' ? 'Dentista' : 'Secretária'}
                                                     </span>
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    <button
-                                                        onClick={() => removeMember(m.id)}
-                                                        className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition"
-                                                        title="Remover da equipe"
-                                                    >
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </td>
-                                            </tr>
+                                                </div>
+
+                                                {/* Calendar Linking UI */}
+                                                <div>
+                                                    {editingCalendarId === m.id ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                type="text"
+                                                                value={tempCalendarId}
+                                                                onChange={e => setTempCalendarId(e.target.value)}
+                                                                placeholder="ID @group.calendar..."
+                                                                className="text-sm border rounded p-2 w-full outline-none focus:border-[var(--primary)]"
+                                                            />
+                                                            <button
+                                                                onClick={() => handleSaveCalendar(m.id)}
+                                                                className="text-green-600 hover:bg-green-50 p-2 rounded min-w-[44px] min-h-[44px] flex items-center justify-center"
+                                                            >
+                                                                <Check size={18} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setEditingCalendarId(null)}
+                                                                className="text-red-500 hover:bg-red-50 p-2 rounded min-w-[44px] min-h-[44px] flex items-center justify-center"
+                                                            >
+                                                                <Trash2 size={18} />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            className="flex items-center gap-2 text-sm text-slate-600 hover:text-[var(--primary)] transition-colors w-full py-2"
+                                                            onClick={() => {
+                                                                setEditingCalendarId(m.id);
+                                                                setTempCalendarId(m.linked_calendar_id || '');
+                                                            }}
+                                                        >
+                                                            <Calendar size={16} className={m.linked_calendar_id ? "text-green-500" : "text-slate-400"} />
+                                                            {m.linked_calendar_id ? (
+                                                                <span className="text-green-600 font-medium">Agenda Vinculada</span>
+                                                            ) : (
+                                                                <span>Vincular Agenda</span>
+                                                            )}
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                {/* Action Button */}
+                                                <button
+                                                    onClick={() => removeMember(m.id)}
+                                                    className="w-full flex items-center justify-center gap-2 text-red-600 hover:bg-red-50 py-3 px-4 rounded-lg transition-colors font-medium min-h-[44px]"
+                                                >
+                                                    <Trash2 size={18} />
+                                                    Remover da Equipe
+                                                </button>
+                                            </div>
                                         ))}
-                                    </tbody>
-                                </table>
+                                    </div>
+                                </>
                             )}
                         </div>
                     </div>
