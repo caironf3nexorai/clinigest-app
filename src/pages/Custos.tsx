@@ -712,33 +712,106 @@ export const Custos = () => {
                         </div>
                     ) : (
                         filteredCustos.map((custo) => (
-                            <div key={custo.id} className={`group bg-white p-4 rounded-xl border shadow-sm hover:shadow-md transition-all flex items-center justify-between ${editingId === custo.id ? 'border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50/10' : 'border-slate-200'} ${custo.pago ? 'opacity-75 bg-slate-50' : ''}`}>
-                                <div className="flex items-center gap-4">
-                                    {/* Payment Toggle */}
-                                    <button
-                                        onClick={() => handleTogglePago(custo)}
-                                        className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all ${custo.pago ? 'bg-green-100 border-green-300 text-green-600' : 'bg-white border-slate-300 text-slate-200 hover:text-green-500 hover:border-green-400'}`}
-                                        title={custo.pago ? "Pago! Clique para desfazer" : "Confirmar Pagamento"}
-                                    >
-                                        <Check size={16} className={custo.pago ? "opacity-100" : "opacity-0 hover:opacity-100"} />
-                                    </button>
+                            <div key={custo.id} className={`group bg-white p-4 rounded-xl border shadow-sm hover:shadow-md transition-all ${editingId === custo.id ? 'border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50/10' : 'border-slate-200'} ${custo.pago ? 'opacity-75 bg-slate-50' : ''}`}>
+                                {/* Desktop Layout */}
+                                <div className="hidden sm:flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        {/* Payment Toggle */}
+                                        <button
+                                            onClick={() => handleTogglePago(custo)}
+                                            className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all ${custo.pago ? 'bg-green-100 border-green-300 text-green-600' : 'bg-white border-slate-300 text-slate-200 hover:text-green-500 hover:border-green-400'}`}
+                                            title={custo.pago ? "Pago! Clique para desfazer" : "Confirmar Pagamento"}
+                                        >
+                                            <Check size={16} className={custo.pago ? "opacity-100" : "opacity-0 hover:opacity-100"} />
+                                        </button>
 
-                                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${custo.categoria === 'Fixa'
-                                        ? 'bg-blue-50 text-blue-600'
-                                        : 'bg-orange-50 text-orange-600'
-                                        }`}>
-                                        {custo.categoria === 'Fixa' ? 'F' : 'V'}
-                                    </div>
-                                    <div>
-                                        <h3 className="font-bold text-slate-900">
-                                            {custo.titulo}
-                                            {custo.parcela_numero && custo.total_parcelas && (
-                                                <span className="ml-2 text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                                                    {custo.parcela_numero}/{custo.total_parcelas}
+                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${custo.categoria === 'Fixa'
+                                            ? 'bg-blue-50 text-blue-600'
+                                            : 'bg-orange-50 text-orange-600'
+                                            }`}>
+                                            {custo.categoria === 'Fixa' ? 'F' : 'V'}
+                                        </div>
+                                        <div>
+                                            <h3 className="font-bold text-slate-900">
+                                                {custo.titulo}
+                                                {custo.parcela_numero && custo.total_parcelas && (
+                                                    <span className="ml-2 text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                                                        {custo.parcela_numero}/{custo.total_parcelas}
+                                                    </span>
+                                                )}
+                                            </h3>
+                                            <div className="flex items-center gap-3 text-sm text-slate-500 mt-0.5">
+                                                <span className="flex items-center gap-1">
+                                                    <Calendar size={14} />
+                                                    {format(parseISO(custo.data_pagamento), 'dd/MM/yyyy')}
                                                 </span>
-                                            )}
-                                        </h3>
-                                        <div className="flex items-center gap-3 text-sm text-slate-500 mt-0.5">
+                                                {custo.data_validade && (
+                                                    <span className="flex items-center gap-1 text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded text-xs">
+                                                        <Clock size={12} />
+                                                        Expira: {format(parseISO(custo.data_validade), 'dd/MM')}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-4 sm:gap-6">
+                                        <span className="text-lg font-bold text-slate-700">
+                                            R$ {Number(custo.valor).toFixed(2)}
+                                        </span>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => handleEdit(custo)}
+                                                className="p-2 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                title="Editar"
+                                            >
+                                                <Edit size={18} />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteClick(custo)}
+                                                className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                title="Excluir"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Mobile Layout */}
+                                <div className="sm:hidden space-y-3">
+                                    {/* Header Row: Category + Payment */}
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold ${custo.categoria === 'Fixa'
+                                                ? 'bg-blue-50 text-blue-600'
+                                                : 'bg-orange-50 text-orange-600'
+                                                }`}>
+                                                {custo.categoria === 'Fixa' ? 'F' : 'V'}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-bold text-slate-900 text-base truncate">
+                                                    {custo.titulo}
+                                                </h3>
+                                                {custo.parcela_numero && custo.total_parcelas && (
+                                                    <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full inline-block mt-0.5">
+                                                        {custo.parcela_numero}/{custo.total_parcelas}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => handleTogglePago(custo)}
+                                            className={`w-10 h-10 rounded-full flex items-center justify-center border transition-all flex-shrink-0 ${custo.pago ? 'bg-green-100 border-green-300 text-green-600' : 'bg-white border-slate-300 text-slate-400 hover:text-green-500 hover:border-green-400'}`}
+                                            title={custo.pago ? "Pago!" : "Confirmar Pagamento"}
+                                        >
+                                            <Check size={18} className={custo.pago ? "opacity-100" : "opacity-50"} />
+                                        </button>
+                                    </div>
+
+                                    {/* Info Row */}
+                                    <div className="flex items-center justify-between text-sm">
+                                        <div className="flex items-center gap-3 text-slate-500">
                                             <span className="flex items-center gap-1">
                                                 <Calendar size={14} />
                                                 {format(parseISO(custo.data_pagamento), 'dd/MM/yyyy')}
@@ -750,27 +823,26 @@ export const Custos = () => {
                                                 </span>
                                             )}
                                         </div>
+                                        <span className="text-lg font-bold text-slate-700">
+                                            R$ {Number(custo.valor).toFixed(2)}
+                                        </span>
                                     </div>
-                                </div>
 
-                                <div className="flex items-center gap-4 sm:gap-6">
-                                    <span className="text-lg font-bold text-slate-700">
-                                        R$ {Number(custo.valor).toFixed(2)}
-                                    </span>
-                                    <div className="flex items-center gap-1">
+                                    {/* Action Buttons */}
+                                    <div className="flex gap-2 pt-2">
                                         <button
                                             onClick={() => handleEdit(custo)}
-                                            className="p-2 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
-                                            title="Editar"
+                                            className="flex-1 flex items-center justify-center gap-2 bg-indigo-50 text-indigo-600 py-3 px-4 rounded-lg hover:bg-indigo-100 transition-colors font-medium min-h-[44px]"
                                         >
                                             <Edit size={18} />
+                                            Editar
                                         </button>
                                         <button
                                             onClick={() => handleDeleteClick(custo)}
-                                            className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                            title="Excluir"
+                                            className="flex-1 flex items-center justify-center gap-2 bg-red-50 text-red-600 py-3 px-4 rounded-lg hover:bg-red-100 transition-colors font-medium min-h-[44px]"
                                         >
                                             <Trash2 size={18} />
+                                            Excluir
                                         </button>
                                     </div>
                                 </div>

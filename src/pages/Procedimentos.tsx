@@ -115,11 +115,11 @@ export const Procedimentos = () => {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                 <h1 className="text-2xl font-bold text-[var(--text-main)]">Procedimentos e Serviços</h1>
                 <button
                     onClick={() => handleOpenModal()}
-                    className="flex items-center gap-2 bg-[var(--primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors"
+                    className="flex items-center justify-center gap-2 bg-[var(--primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--primary-hover)] transition-colors whitespace-nowrap"
                 >
                     <Plus size={20} />
                     Novo Procedimento
