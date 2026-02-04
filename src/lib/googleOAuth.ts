@@ -23,30 +23,44 @@ export async function exchangeCodeForTokens(
     console.log('🔄 Refreshing session...');
     await supabase.auth.refreshSession();
 
-    // Wait a bit for session to be fully available
+    // Get session for auth token
     const { data: sessionData } = await supabase.auth.getSession();
-    console.log('📋 Session available:', !!sessionData?.session?.access_token);
+    const accessToken = sessionData?.session?.access_token;
+    console.log('📋 Session available:', !!accessToken);
 
-    if (!sessionData?.session) {
+    if (!accessToken) {
         throw new Error('Sessão não disponível. Faça login novamente.');
     }
 
-    // Use supabase.functions.invoke for proper authentication
-    console.log('📡 Calling Edge Function...');
-    const { data, error } = await supabase.functions.invoke('google-oauth', {
-        body: {
+    // Get Supabase URL and anon key from environment
+    const SUPABASE_URL = (import.meta as any).env.VITE_SUPABASE_URL;
+    const SUPABASE_ANON_KEY = (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
+    const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/google-oauth`;
+
+    // Call Edge Function with proper headers
+    console.log('📡 Calling Edge Function via fetch...', EDGE_FUNCTION_URL);
+    const response = await fetch(EDGE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+            'apikey': SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
             action: 'exchange',
             code,
             redirectUri,
             userId,
-        },
+        }),
     });
 
-    if (error) {
-        console.error('Edge function error:', error);
-        // Try to extract more detailed error from context
-        const errorMsg = error.context?.body?.error || error.message || 'Failed to exchange code for tokens';
-        throw new Error(errorMsg);
+    console.log('📥 Response status:', response.status);
+    const data = await response.json();
+    console.log('📥 Response data:', data);
+
+    if (!response.ok) {
+        console.error('Edge function error:', data);
+        throw new Error(data.error || `HTTP ${response.status}: Failed to exchange code for tokens`);
     }
 
     // Check if data contains an error
