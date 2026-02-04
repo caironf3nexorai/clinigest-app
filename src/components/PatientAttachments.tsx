@@ -4,6 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { FileText, Image, Trash2, Upload, Download, File, X, Loader2 } from 'lucide-react';
 import type { Attachment } from '../types/db';
 import { format } from 'date-fns';
+import { useToast } from './Toast';
+import { ConfirmModal } from './ConfirmModal';
 
 interface PatientAttachmentsProps {
     patientId: string;
@@ -11,10 +13,15 @@ interface PatientAttachmentsProps {
 
 export const PatientAttachments: React.FC<PatientAttachmentsProps> = ({ patientId }) => {
     const { user } = useAuth();
+    const toast = useToast();
     const [attachments, setAttachments] = useState<Attachment[]>([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        attachment: Attachment | null;
+    }>({ isOpen: false, attachment: null });
 
     useEffect(() => {
         if (user && patientId) {
@@ -46,7 +53,7 @@ export const PatientAttachments: React.FC<PatientAttachmentsProps> = ({ patientI
         const fileSizeLimit = 5 * 1024 * 1024; // 5MB
 
         if (file.size > fileSizeLimit) {
-            alert('Arquivo muito grande. O limite é 5MB.');
+            toast.warning('Arquivo muito grande. O limite é 5MB.');
             return;
         }
 
@@ -82,17 +89,25 @@ export const PatientAttachments: React.FC<PatientAttachmentsProps> = ({ patientI
             if (dbError) throw dbError;
 
             setAttachments([data, ...attachments]);
+            toast.success('Arquivo enviado com sucesso!');
         } catch (error: any) {
             console.error('Upload error:', error);
-            alert('Erro ao fazer upload: ' + error.message);
+            toast.error('Erro ao fazer upload: ' + error.message);
         } finally {
             setUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
 
-    const handleDelete = async (attachment: Attachment) => {
-        if (!confirm(`Excluir o arquivo "${attachment.file_name}"?`)) return;
+    const handleDelete = (attachment: Attachment) => {
+        setConfirmModal({ isOpen: true, attachment });
+    };
+
+    const confirmDelete = async () => {
+        const attachment = confirmModal.attachment;
+        if (!attachment) return;
+
+        setConfirmModal({ isOpen: false, attachment: null });
 
         try {
             // 1. Delete from Storage
@@ -113,9 +128,10 @@ export const PatientAttachments: React.FC<PatientAttachmentsProps> = ({ patientI
             if (dbError) throw dbError;
 
             setAttachments(attachments.filter(a => a.id !== attachment.id));
+            toast.success('Arquivo excluído.');
         } catch (error) {
             console.error('Delete error:', error);
-            alert('Erro ao excluir arquivo');
+            toast.error('Erro ao excluir arquivo');
         }
     };
 
@@ -130,7 +146,7 @@ export const PatientAttachments: React.FC<PatientAttachmentsProps> = ({ patientI
             window.open(data.signedUrl, '_blank');
         } catch (error) {
             console.error('Download error:', error);
-            alert('Erro ao abrir arquivo');
+            toast.error('Erro ao abrir arquivo');
         }
     };
 
@@ -149,84 +165,96 @@ export const PatientAttachments: React.FC<PatientAttachmentsProps> = ({ patientI
     };
 
     return (
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold flex items-center gap-2 text-slate-800">
-                    <File className="text-slate-400" />
-                    Anexos e Exames
-                </h2>
-                <div>
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileSelect}
-                        className="hidden"
-                        accept="image/*,.pdf,.doc,.docx"
-                    />
-                    <button
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={uploading}
-                        className="btn btn-primary text-sm py-2"
-                    >
-                        {uploading ? (
-                            <Loader2 size={18} className="animate-spin" />
-                        ) : (
-                            <Upload size={18} />
-                        )}
-                        <span className="hidden sm:inline ml-2">
-                            {uploading ? 'Enviando...' : 'Novo Anexo'}
-                        </span>
-                    </button>
-                </div>
-            </div>
-
-            {loading ? (
-                <div className="text-center py-10 text-slate-400">Carregando arquivos...</div>
-            ) : attachments.length === 0 ? (
-                <div className="text-center py-12 border-2 border-dashed border-slate-100 rounded-xl">
-                    <div className="w-12 h-12 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <Upload size={24} />
+        <>
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-bold flex items-center gap-2 text-slate-800">
+                        <File className="text-slate-400" />
+                        Anexos e Exames
+                    </h2>
+                    <div>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileSelect}
+                            className="hidden"
+                            accept="image/*,.pdf,.doc,.docx"
+                        />
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploading}
+                            className="btn btn-primary text-sm py-2"
+                        >
+                            {uploading ? (
+                                <Loader2 size={18} className="animate-spin" />
+                            ) : (
+                                <Upload size={18} />
+                            )}
+                            <span className="hidden sm:inline ml-2">
+                                {uploading ? 'Enviando...' : 'Novo Anexo'}
+                            </span>
+                        </button>
                     </div>
-                    <p className="text-slate-500 font-medium">Nenhum arquivo anexado</p>
-                    <p className="text-sm text-slate-400 mt-1">Envie exames, fotos ou documentos deste paciente.</p>
                 </div>
-            ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {attachments.map((file) => (
-                        <div key={file.id} className="group relative bg-slate-50 border border-slate-100 rounded-xl p-3 hover:shadow-md transition-shadow flex items-start gap-3">
-                            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shrink-0 border border-slate-100">
-                                {getFileIcon(file.file_type)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <h4 className="font-medium text-slate-900 truncate text-sm" title={file.file_name}>
-                                    {file.file_name}
-                                </h4>
-                                <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                                    <span>{formatFileSize(file.file_size)}</span>
-                                    <span>•</span>
-                                    <span>{format(new Date(file.created_at), 'dd/MM/yy')}</span>
+
+                {loading ? (
+                    <div className="text-center py-10 text-slate-400">Carregando arquivos...</div>
+                ) : attachments.length === 0 ? (
+                    <div className="text-center py-12 border-2 border-dashed border-slate-100 rounded-xl">
+                        <div className="w-12 h-12 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <Upload size={24} />
+                        </div>
+                        <p className="text-slate-500 font-medium">Nenhum arquivo anexado</p>
+                        <p className="text-sm text-slate-400 mt-1">Envie exames, fotos ou documentos deste paciente.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {attachments.map((file) => (
+                            <div key={file.id} className="group relative bg-slate-50 border border-slate-100 rounded-xl p-3 hover:shadow-md transition-shadow flex items-start gap-3">
+                                <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shrink-0 border border-slate-100">
+                                    {getFileIcon(file.file_type)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="font-medium text-slate-900 truncate text-sm" title={file.file_name}>
+                                        {file.file_name}
+                                    </h4>
+                                    <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+                                        <span>{formatFileSize(file.file_size)}</span>
+                                        <span>•</span>
+                                        <span>{format(new Date(file.created_at), 'dd/MM/yy')}</span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                    <button
+                                        onClick={() => handleDownload(file)}
+                                        className="p-1.5 text-slate-400 hover:text-[var(--primary)] hover:bg-white rounded-lg transition-colors"
+                                        title="Visualizar/Baixar"
+                                    >
+                                        <Download size={16} />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(file)}
+                                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors"
+                                        title="Excluir"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                <button
-                                    onClick={() => handleDownload(file)}
-                                    className="p-1.5 text-slate-400 hover:text-[var(--primary)] hover:bg-white rounded-lg transition-colors"
-                                    title="Visualizar/Baixar"
-                                >
-                                    <Download size={16} />
-                                </button>
-                                <button
-                                    onClick={() => handleDelete(file)}
-                                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors"
-                                    title="Excluir"
-                                >
-                                    <Trash2 size={16} />
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal({ isOpen: false, attachment: null })}
+                onConfirm={confirmDelete}
+                title="Excluir Arquivo"
+                message={`Excluir o arquivo "${confirmModal.attachment?.file_name}"?`}
+                variant="danger"
+                confirmText="Excluir"
+            />
+        </>
     );
 };

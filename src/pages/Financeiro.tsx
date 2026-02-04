@@ -5,9 +5,11 @@ import { format, startOfMonth, endOfMonth, parseISO, subMonths, addMonths } from
 import { ptBR } from 'date-fns/locale';
 import { Wallet, TrendingUp, DollarSign, Calendar, ArrowLeft, ArrowRight, CreditCard, Banknote, QrCode, ShieldCheck, FileText, Download, TrendingDown, PieChart as PieChartIcon } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
+import { useToast } from '../components/Toast';
 
 export const Financeiro = () => {
     const { user, profile } = useAuth();
+    const toast = useToast();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [loading, setLoading] = useState(true);
 
@@ -134,7 +136,10 @@ export const Financeiro = () => {
     };
 
     const handleExport = () => {
-        if (transactions.length === 0) return alert('Sem dados para exportar');
+        if (transactions.length === 0) {
+            toast.warning('Sem dados para exportar');
+            return;
+        }
 
         const headers = ['Data', 'Paciente', 'Procedimento', 'Forma de Pagamento', 'Valor'];
         const rows = transactions.map(t => [

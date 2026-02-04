@@ -3,14 +3,21 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Procedure } from '../types/db';
 import { Loader2, Plus, Edit, Trash2, Save, X, DollarSign } from 'lucide-react';
+import { useToast } from '../components/Toast';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 export const Procedimentos = () => {
     const { user } = useAuth();
+    const toast = useToast();
     const [procedures, setProcedures] = useState<Procedure[]>([]);
     const [loading, setLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        onConfirm: () => void;
+    }>({ isOpen: false, onConfirm: () => { } });
 
     // Form State
     const [name, setName] = useState('');
@@ -81,23 +88,29 @@ export const Procedimentos = () => {
 
             setModalOpen(false);
             fetchProcedures();
+            toast.success('Procedimento salvo com sucesso!');
         } catch (error: any) {
-            alert('Erro ao salvar: ' + error.message);
+            toast.error('Erro ao salvar: ' + error.message);
         } finally {
             setSaving(false);
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Excluir este procedimento?')) return;
-        try {
-            const { error } = await supabase.from('procedures').delete().eq('id', id);
-            if (error) throw error;
-            setProcedures(procedures.filter(p => p.id !== id));
-        } catch (error) {
-            console.error(error);
-            alert('Erro ao excluir');
-        }
+    const handleDelete = (id: string) => {
+        setConfirmModal({
+            isOpen: true,
+            onConfirm: async () => {
+                try {
+                    const { error } = await supabase.from('procedures').delete().eq('id', id);
+                    if (error) throw error;
+                    setProcedures(procedures.filter(p => p.id !== id));
+                    toast.success('Procedimento excluído.');
+                } catch (error) {
+                    console.error(error);
+                    toast.error('Erro ao excluir');
+                }
+            }
+        });
     };
 
     return (
@@ -229,6 +242,16 @@ export const Procedimentos = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={confirmModal.onConfirm}
+                title="Excluir Procedimento"
+                message="Tem certeza que deseja excluir este procedimento?"
+                variant="danger"
+                confirmText="Excluir"
+            />
         </div>
     );
 };

@@ -4,7 +4,7 @@ import { Layout } from './components/Layout';
 import { RequireRole } from './components/RequireRole';
 import { Dashboard, Custos, Pacientes, Login, Register, Configuracoes, SubscriptionExpired, Agenda, AdminDashboard, Procedimentos, Financeiro, Equipe, Comissoes, JoinClinic } from './pages';
 import { ForgotPassword } from './pages/ForgotPassword';
-
+import { ToastProvider } from './components/Toast';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
@@ -62,81 +62,83 @@ const RedirectIfAuthenticated = ({ children }: { children: React.ReactNode }) =>
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={
-            <RedirectIfAuthenticated>
-              <Login />
-            </RedirectIfAuthenticated>
-          } />
-
-          <Route path="/forgot-password" element={
-            <RedirectIfAuthenticated>
-              <ForgotPassword />
-            </RedirectIfAuthenticated>
-          } />
-
-          {/* ... existing routes ... */}
-
-          <Route path="/register" element={
-            <RedirectIfAuthenticated>
-              <Register />
-            </RedirectIfAuthenticated>
-          } />
-
-          <Route path="/entrar/:token" element={<JoinClinic />} />
-
-          <Route path="/subscription-expired" element={
-            <RequireAuth ignoreSubscription={true}>
-              <SubscriptionExpired />
-            </RequireAuth>
-          } />
-
-          <Route path="/" element={
-            <RequireAuth>
-              <Layout />
-            </RequireAuth>
-          }>
-            <Route index element={<Dashboard />} />
-            <Route path="custos" element={
-              <RequireRole allowedRoles={['clinic_owner']}>
-                <Custos />
-              </RequireRole>
+    <ToastProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={
+              <RedirectIfAuthenticated>
+                <Login />
+              </RedirectIfAuthenticated>
             } />
-            <Route path="financeiro" element={
-              <RequireRole allowedRoles={['clinic_owner']}>
-                <Financeiro />
-              </RequireRole>
+
+            <Route path="/forgot-password" element={
+              <RedirectIfAuthenticated>
+                <ForgotPassword />
+              </RedirectIfAuthenticated>
             } />
-            <Route path="procedimentos" element={
-              <RequireRole allowedRoles={['clinic_owner']}>
-                <Procedimentos />
-              </RequireRole>
+
+            {/* ... existing routes ... */}
+
+            <Route path="/register" element={
+              <RedirectIfAuthenticated>
+                <Register />
+              </RedirectIfAuthenticated>
             } />
-            <Route path="comissoes" element={
-              <RequireRole allowedRoles={['clinic_owner']}>
-                <Comissoes />
-              </RequireRole>
+
+            <Route path="/entrar/:token" element={<JoinClinic />} />
+
+            <Route path="/subscription-expired" element={
+              <RequireAuth ignoreSubscription={true}>
+                <SubscriptionExpired />
+              </RequireAuth>
             } />
-            <Route path="equipe" element={
-              <RequireRole allowedRoles={['clinic_owner']}>
-                <Equipe />
-              </RequireRole>
-            } />
-            <Route path="pacientes" element={<Pacientes />} />
-            <Route path="agenda" element={<Agenda />} />
-            <Route path="configuracoes" element={<Configuracoes />} />
-            <Route path="procedimentos" element={<Procedimentos />} />
-            <Route path="admin" element={
-              <RequireAdmin>
-                <AdminDashboard />
-              </RequireAdmin>
-            } />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+
+            <Route path="/" element={
+              <RequireAuth>
+                <Layout />
+              </RequireAuth>
+            }>
+              <Route index element={<Dashboard />} />
+              <Route path="custos" element={
+                <RequireRole allowedRoles={['clinic_owner']}>
+                  <Custos />
+                </RequireRole>
+              } />
+              <Route path="financeiro" element={
+                <RequireRole allowedRoles={['clinic_owner']}>
+                  <Financeiro />
+                </RequireRole>
+              } />
+              <Route path="procedimentos" element={
+                <RequireRole allowedRoles={['clinic_owner']}>
+                  <Procedimentos />
+                </RequireRole>
+              } />
+              <Route path="comissoes" element={
+                <RequireRole allowedRoles={['clinic_owner']}>
+                  <Comissoes />
+                </RequireRole>
+              } />
+              <Route path="equipe" element={
+                <RequireRole allowedRoles={['clinic_owner']}>
+                  <Equipe />
+                </RequireRole>
+              } />
+              <Route path="pacientes" element={<Pacientes />} />
+              <Route path="agenda" element={<Agenda />} />
+              <Route path="configuracoes" element={<Configuracoes />} />
+              <Route path="procedimentos" element={<Procedimentos />} />
+              <Route path="admin" element={
+                <RequireAdmin>
+                  <AdminDashboard />
+                </RequireAdmin>
+              } />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ToastProvider>
   );
 }
 

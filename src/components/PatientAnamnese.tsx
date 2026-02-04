@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Save, AlertCircle, Lock, Edit3 } from 'lucide-react';
 import type { Anamnese } from '../types/db';
+import { useToast } from './Toast';
 
 interface PatientAnamneseProps {
     patientId: string;
@@ -10,6 +11,7 @@ interface PatientAnamneseProps {
 
 export const PatientAnamnese: React.FC<PatientAnamneseProps> = ({ patientId }) => {
     const { user, profile } = useAuth();
+    const toast = useToast();
     const [anamnese, setAnamnese] = useState<Anamnese | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -83,11 +85,11 @@ export const PatientAnamnese: React.FC<PatientAnamneseProps> = ({ patientId }) =
             }
 
             setIsEditing(false);
-            alert('Anamnese salva com sucesso!');
+            toast.success('Anamnese salva com sucesso!');
             fetchAnamnese();
         } catch (error) {
             console.error('Erro ao salvar anamnese:', error);
-            alert('Erro ao salvar anamnese.');
+            toast.error('Erro ao salvar anamnese.');
         } finally {
             setSaving(false);
         }

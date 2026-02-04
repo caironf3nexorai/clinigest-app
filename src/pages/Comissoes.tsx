@@ -3,9 +3,11 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { DollarSign, Save, Loader2, ChevronRight, Check, User } from 'lucide-react';
 import { Procedure, Profile, DentistCommission } from '../types/db';
+import { useToast } from '../components/Toast';
 
 export const Comissoes = () => {
     const { user } = useAuth();
+    const toast = useToast();
     const [dentists, setDentists] = useState<Profile[]>([]); // Should fetch actual dentists
     const [procedures, setProcedures] = useState<Procedure[]>([]);
     const [commissions, setCommissions] = useState<DentistCommission[]>([]);
@@ -91,9 +93,9 @@ export const Comissoes = () => {
                 .upsert(updates, { onConflict: 'dentist_id, procedure_id' });
 
             if (error) throw error;
-            alert('Comissões atualizadas com sucesso!');
+            toast.success('Comissões atualizadas com sucesso!');
         } catch (error: any) {
-            alert('Erro ao salvar: ' + error.message);
+            toast.error('Erro ao salvar: ' + error.message);
         } finally {
             setSaving(false);
         }

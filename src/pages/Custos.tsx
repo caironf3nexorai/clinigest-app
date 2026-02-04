@@ -6,6 +6,7 @@ import { Plus, Calculator as CalcIcon, Trash2, Calendar, Tag, Clock, Edit, Save,
 import type { Custo } from '../types/db';
 import { format, parseISO, addMonths, subMonths, startOfMonth, endOfMonth, isWithinInterval, differenceInMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useToast } from '../components/Toast';
 
 // Type for installment preview
 interface ParcelaPreview {
@@ -16,6 +17,7 @@ interface ParcelaPreview {
 
 export const Custos = () => {
     const { user } = useAuth();
+    const toast = useToast();
     const [custos, setCustos] = useState<Custo[]>([]);
     const [loading, setLoading] = useState(true);
     const [showCalculator, setShowCalculator] = useState(false);
@@ -133,7 +135,7 @@ export const Custos = () => {
             resetForm();
             fetchCustos();
         } catch (error) {
-            alert('Erro ao salvar custo');
+            toast.error('Erro ao salvar custo');
             console.error(error);
         }
     };
@@ -164,7 +166,7 @@ export const Custos = () => {
             resetForm();
             fetchCustos();
         } catch (error) {
-            alert('Erro ao criar parcelas');
+            toast.error('Erro ao criar parcelas');
             console.error(error);
         }
     };
@@ -199,7 +201,7 @@ export const Custos = () => {
             resetForm();
             fetchCustos();
         } catch (error) {
-            alert('Erro ao criar parcelas');
+            toast.error('Erro ao criar parcelas');
             console.error(error);
         }
     };
@@ -238,7 +240,7 @@ export const Custos = () => {
             resetForm();
             fetchCustos();
         } catch (error) {
-            alert('Erro ao atualizar custo');
+            toast.error('Erro ao atualizar custo');
             console.error(error);
         }
     };
@@ -258,7 +260,7 @@ export const Custos = () => {
             resetForm();
             fetchCustos();
         } catch (error) {
-            alert('Erro ao atualizar');
+            toast.error('Erro ao atualizar');
             console.error(error);
         }
     };
@@ -278,7 +280,7 @@ export const Custos = () => {
             resetForm();
             fetchCustos();
         } catch (error) {
-            alert('Erro ao atualizar todas');
+            toast.error('Erro ao atualizar todas');
             console.error(error);
         }
     };
@@ -317,13 +319,20 @@ export const Custos = () => {
     };
 
     const handleDeleteSingle = async (id: string) => {
-        if (!confirm('Tem certeza que deseja apagar este custo?')) return;
+        // For single items without grupo_id, show delete modal
+        setShowDeleteModal(true);
+    };
+
+    const confirmDeleteSingle = async () => {
+        if (!deleteTarget) return;
         try {
-            await supabase.from('custos').delete().eq('id', id);
-            setCustos(custos.filter(c => c.id !== id));
-            if (editingId === id) resetForm();
+            await supabase.from('custos').delete().eq('id', deleteTarget.id);
+            setCustos(custos.filter(c => c.id !== deleteTarget.id));
+            if (editingId === deleteTarget.id) resetForm();
+            toast.success('Custo excluído.');
         } catch (error) {
             console.error(error);
+            toast.error('Erro ao excluir.');
         }
         setShowDeleteModal(false);
         setDeleteTarget(null);

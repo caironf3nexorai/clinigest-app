@@ -7,9 +7,22 @@ import { format, parseISO, differenceInYears } from 'date-fns';
 import { PatientAttachments } from '../components/PatientAttachments';
 import { PatientAnamnese } from '../components/PatientAnamnese';
 import { PatientPrintView, printPatientRecord } from '../components/PatientPrintView';
+import { useToast } from '../components/Toast';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 export const Pacientes = () => {
-    const { user, profile } = useAuth(); // Destructure profile
+    const { user, profile } = useAuth();
+    const toast = useToast();
+
+    // Confirm Modal State
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        variant?: 'danger' | 'warning' | 'info';
+        confirmText?: string;
+    }>({ isOpen: false, title: '', message: '', onConfirm: () => { } });
 
     // View State: 'list' | 'details'
     const [view, setView] = useState<'list' | 'details' | 'trash'>('list');
@@ -138,7 +151,7 @@ export const Pacientes = () => {
                 if (error) throw error;
 
                 setPacientes(pacientes.map(p => p.id === editingPacienteId ? data : p));
-                alert('Paciente atualizado com sucesso!');
+                toast.success('Paciente atualizado com sucesso!');
             } else {
                 // CREATE
                 const { data, error } = await supabase.from('pacientes').insert({
@@ -156,31 +169,39 @@ export const Pacientes = () => {
 
             resetPacienteForm();
         } catch (error) {
-            alert('Erro ao salvar paciente');
+            toast.error('Erro ao salvar paciente');
             console.error(error);
         }
     };
 
     const handleDeletePaciente = async () => {
         if (!selectedPaciente) return;
-        if (!confirm('Tem certeza que deseja mover este paciente para a Lixeira?')) return;
 
-        try {
-            const { error } = await supabase
-                .from('pacientes')
-                .update({ deleted_at: new Date().toISOString() })
-                .eq('id', selectedPaciente.id);
+        setConfirmModal({
+            isOpen: true,
+            title: 'Mover para Lixeira',
+            message: 'Tem certeza que deseja mover este paciente para a Lixeira?',
+            variant: 'warning',
+            confirmText: 'Mover',
+            onConfirm: async () => {
+                try {
+                    const { error } = await supabase
+                        .from('pacientes')
+                        .update({ deleted_at: new Date().toISOString() })
+                        .eq('id', selectedPaciente.id);
 
-            if (error) throw error;
+                    if (error) throw error;
 
-            setPacientes(pacientes.filter(p => p.id !== selectedPaciente.id));
-            setSelectedPaciente(null);
-            setView('list');
-            alert('Paciente movido para a Lixeira.');
-        } catch (error) {
-            console.error(error);
-            alert('Erro ao excluir paciente.');
-        }
+                    setPacientes(pacientes.filter(p => p.id !== selectedPaciente.id));
+                    setSelectedPaciente(null);
+                    setView('list');
+                    toast.success('Paciente movido para a Lixeira.');
+                } catch (error) {
+                    console.error(error);
+                    toast.error('Erro ao excluir paciente.');
+                }
+            }
+        });
     };
 
     const handleRestorePaciente = async (paciente: Paciente) => {
@@ -193,29 +214,36 @@ export const Pacientes = () => {
             if (error) throw error;
             fetchPacientes();
             fetchTrash();
-            alert('Paciente restaurado com sucesso!');
+            toast.success('Paciente restaurado com sucesso!');
         } catch (error) {
             console.error(error);
-            alert('Erro ao restaurar paciente.');
+            toast.error('Erro ao restaurar paciente.');
         }
     };
 
-    const handlePermanentDelete = async (paciente: Paciente) => {
-        if (!confirm('ATENÇÃO: Isso excluirá PERMANENTEMENTE o paciente e TODOS os dados associados. Esta ação NÃO pode ser desfeita. Tem certeza?')) return;
+    const handlePermanentDelete = (paciente: Paciente) => {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Excluir Permanentemente',
+            message: 'ATENÇÃO: Isso excluirá PERMANENTEMENTE o paciente e TODOS os dados associados. Esta ação NÃO pode ser desfeita.',
+            variant: 'danger',
+            confirmText: 'Excluir',
+            onConfirm: async () => {
+                try {
+                    const { error } = await supabase
+                        .from('pacientes')
+                        .delete()
+                        .eq('id', paciente.id);
 
-        try {
-            const { error } = await supabase
-                .from('pacientes')
-                .delete()
-                .eq('id', paciente.id);
-
-            if (error) throw error;
-            fetchTrash();
-            alert('Paciente excluído permanentemente.');
-        } catch (error) {
-            console.error(error);
-            alert('Erro ao excluir permanentemente.');
-        }
+                    if (error) throw error;
+                    fetchTrash();
+                    toast.success('Paciente excluído permanentemente.');
+                } catch (error) {
+                    console.error(error);
+                    toast.error('Erro ao excluir permanentemente.');
+                }
+            }
+        });
     };
 
     const handleEditPacienteClick = (e: React.MouseEvent, paciente: Paciente) => {
@@ -278,21 +306,31 @@ export const Pacientes = () => {
                 data_consulta: new Date().toISOString().split('T')[0],
                 payment_method: 'none'
             });
-            alert('Atendimento registrado com sucesso!');
+            toast.success('Atendimento registrado com sucesso!');
         } catch (error) {
-            alert('Erro ao salvar consulta');
+            toast.error('Erro ao salvar consulta');
             console.error(error);
         }
     };
 
-    const handleDeleteConsulta = async (id: string) => {
-        if (!confirm('Apagar este registro de atendimento?')) return;
-        try {
-            await supabase.from('consultas').delete().eq('id', id);
-            setConsultas(consultas.filter(c => c.id !== id));
-        } catch (error) {
-            console.error(error);
-        }
+    const handleDeleteConsulta = (id: string) => {
+        setConfirmModal({
+            isOpen: true,
+            title: 'Excluir Atendimento',
+            message: 'Apagar este registro de atendimento?',
+            variant: 'danger',
+            confirmText: 'Excluir',
+            onConfirm: async () => {
+                try {
+                    await supabase.from('consultas').delete().eq('id', id);
+                    setConsultas(consultas.filter(c => c.id !== id));
+                    toast.success('Atendimento excluído.');
+                } catch (error) {
+                    console.error(error);
+                    toast.error('Erro ao excluir.');
+                }
+            }
+        });
     };
 
     const handleSelectPaciente = (paciente: Paciente) => {
@@ -316,7 +354,7 @@ export const Pacientes = () => {
         if (cleanPhone) {
             window.open(`https://wa.me/55${cleanPhone}`, '_blank');
         } else {
-            alert('Número de telefone inválido.');
+            toast.warning('Número de telefone inválido.');
         }
     };
 
@@ -324,220 +362,242 @@ export const Pacientes = () => {
 
     if (view === 'trash') {
         return (
-            <div className="max-w-5xl mx-auto space-y-6 pb-20">
-                <div className="flex items-center gap-4">
-                    <button onClick={() => setView('list')} className="bg-white p-2 rounded-full shadow-sm hover:translate-x-1 transition-transform border border-slate-100 text-slate-500">
-                        <ArrowLeft size={20} />
-                    </button>
-                    <div>
-                        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                            <Trash2 className="text-red-500" /> Lixeira (Pacientes Excluídos)
-                        </h1>
-                        <p className="text-slate-500">Pacientes excluídos podem ser restaurados</p>
-                    </div>
-                </div>
-
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    {trashPacientes.length === 0 ? (
-                        <div className="p-10 text-center text-slate-400">
-                            <Trash2 size={48} className="mx-auto mb-4 opacity-50" />
-                            <p>A lixeira está vazia.</p>
+            <>
+                <div className="max-w-5xl mx-auto space-y-6 pb-20">
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => setView('list')} className="bg-white p-2 rounded-full shadow-sm hover:translate-x-1 transition-transform border border-slate-100 text-slate-500">
+                            <ArrowLeft size={20} />
+                        </button>
+                        <div>
+                            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                                <Trash2 className="text-red-500" /> Lixeira (Pacientes Excluídos)
+                            </h1>
+                            <p className="text-slate-500">Pacientes excluídos podem ser restaurados</p>
                         </div>
-                    ) : (
-                        <table className="w-full text-left">
-                            <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
-                                <tr>
-                                    <th className="p-4">Paciente</th>
-                                    <th className="p-4">Telefone</th>
-                                    <th className="p-4">Excluído em</th>
-                                    <th className="p-4 text-right">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {trashPacientes.map(p => (
-                                    <tr key={p.id} className="hover:bg-slate-50">
-                                        <td className="p-4 font-medium text-slate-800">{p.nome}</td>
-                                        <td className="p-4 text-slate-500">{p.telefone || '-'}</td>
-                                        <td className="p-4 text-slate-500">{p.deleted_at ? format(parseISO(p.deleted_at), 'dd/MM/yyyy HH:mm') : '-'}</td>
-                                        <td className="p-4 flex items-center justify-end gap-2">
-                                            <button
-                                                onClick={() => handleRestorePaciente(p)}
-                                                className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
-                                            >
-                                                <RotateCcw size={14} /> Restaurar
-                                            </button>
-                                            <button
-                                                onClick={() => handlePermanentDelete(p)}
-                                                className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg text-xs font-bold transition-colors"
-                                            >
-                                                <X size={14} /> Excluir Definitivamente
-                                            </button>
-                                        </td>
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        {trashPacientes.length === 0 ? (
+                            <div className="p-10 text-center text-slate-400">
+                                <Trash2 size={48} className="mx-auto mb-4 opacity-50" />
+                                <p>A lixeira está vazia.</p>
+                            </div>
+                        ) : (
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100">
+                                    <tr>
+                                        <th className="p-4">Paciente</th>
+                                        <th className="p-4">Telefone</th>
+                                        <th className="p-4">Excluído em</th>
+                                        <th className="p-4 text-right">Ações</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    )}
-                </div>
-                <div className="flex gap-2 items-start bg-amber-50 p-4 rounded-lg text-amber-800 text-sm border border-amber-200">
-                    <AlertTriangle size={18} className="shrink-0 mt-0.5" />
-                    <div>
-                        <p className="font-bold">Atenção:</p>
-                        <p>Ao "Excluir Definitivamente", todos os dados (histórico, anexos, anamneses) serão apagados para sempre.</p>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {trashPacientes.map(p => (
+                                        <tr key={p.id} className="hover:bg-slate-50">
+                                            <td className="p-4 font-medium text-slate-800">{p.nome}</td>
+                                            <td className="p-4 text-slate-500">{p.telefone || '-'}</td>
+                                            <td className="p-4 text-slate-500">{p.deleted_at ? format(parseISO(p.deleted_at), 'dd/MM/yyyy HH:mm') : '-'}</td>
+                                            <td className="p-4 flex items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => handleRestorePaciente(p)}
+                                                    className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
+                                                >
+                                                    <RotateCcw size={14} /> Restaurar
+                                                </button>
+                                                <button
+                                                    onClick={() => handlePermanentDelete(p)}
+                                                    className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg text-xs font-bold transition-colors"
+                                                >
+                                                    <X size={14} /> Excluir Definitivamente
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                    <div className="flex gap-2 items-start bg-amber-50 p-4 rounded-lg text-amber-800 text-sm border border-amber-200">
+                        <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+                        <div>
+                            <p className="font-bold">Atenção:</p>
+                            <p>Ao "Excluir Definitivamente", todos os dados (histórico, anexos, anamneses) serão apagados para sempre.</p>
+                        </div>
                     </div>
                 </div>
-            </div>
+                <ConfirmModal
+                    isOpen={confirmModal.isOpen}
+                    onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                    onConfirm={confirmModal.onConfirm}
+                    title={confirmModal.title}
+                    message={confirmModal.message}
+                    variant={confirmModal.variant}
+                    confirmText={confirmModal.confirmText}
+                />
+            </>
         );
     }
 
     if (view === 'list') {
         return (
-            <div className="max-w-5xl mx-auto space-y-6 pb-20 print:hidden">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                        <h1 className="text-2xl font-bold text-slate-900">Pacientes</h1>
-                        <p className="text-slate-500">Gestão de prontuários e atendimentos</p>
-                    </div>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => setView('trash')}
-                            className="bg-white hover:bg-slate-50 text-slate-600 px-4 py-2 rounded-xl flex items-center gap-2 transition-all shadow-sm border border-slate-200 font-medium"
-                        >
-                            <Trash2 size={18} /> Lixeira
-                        </button>
-                        <button
-                            onClick={() => {
-                                resetPacienteForm();
-                                setShowNewPatientForm(!showNewPatientForm);
-                            }}
-                            className={`btn ${showNewPatientForm ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'btn-primary'}`}
-                        >
-                            {showNewPatientForm ? <div className="flex items-center gap-2">Cancelar</div> : <div className="flex items-center gap-2"><Plus size={20} /> Novo Paciente</div>}
-                        </button>
-                    </div>
-                </div>
-
-                {/* New/Edit Patient Form (Collapsible) */}
-                {showNewPatientForm && (
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-4">
-                        <h3 className="font-bold mb-4">{isEditingPaciente ? 'Editar Paciente' : 'Cadastro de Paciente'}</h3>
-                        <form onSubmit={handleSavePaciente} className="flex flex-col md:flex-row gap-4 items-end">
-                            <div className="flex-1 w-full">
-                                <label className="block text-sm font-medium mb-1">Nome Completo</label>
-                                <input
-                                    className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                                    value={novoPaciente.nome}
-                                    onChange={e => setNovoPaciente({ ...novoPaciente, nome: e.target.value })}
-                                    required
-                                />
-                            </div>
-                            <div className="w-full md:w-48">
-                                <label className="block text-sm font-medium mb-1">Telefone</label>
-                                <input
-                                    className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                                    value={novoPaciente.telefone}
-                                    onChange={e => setNovoPaciente({ ...novoPaciente, telefone: e.target.value })}
-                                    placeholder="(00) 00000-0000"
-                                />
-                            </div>
-                            <div className="w-full md:w-40">
-                                <label className="block text-sm font-medium mb-1">D. Nascimento</label>
-                                <input
-                                    type="date"
-                                    className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                                    value={novoPaciente.data_nascimento}
-                                    onChange={e => setNovoPaciente({ ...novoPaciente, data_nascimento: e.target.value })}
-                                />
-                            </div>
-                            <button type="submit" className="btn btn-primary w-full md:w-auto">
-                                {isEditingPaciente ? 'Atualizar' : 'Salvar'}
+            <>
+                <div className="max-w-5xl mx-auto space-y-6 pb-20 print:hidden">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <h1 className="text-2xl font-bold text-slate-900">Pacientes</h1>
+                            <p className="text-slate-500">Gestão de prontuários e atendimentos</p>
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setView('trash')}
+                                className="bg-white hover:bg-slate-50 text-slate-600 px-4 py-2 rounded-xl flex items-center gap-2 transition-all shadow-sm border border-slate-200 font-medium"
+                            >
+                                <Trash2 size={18} /> Lixeira
                             </button>
-                        </form>
-                    </div>
-                )}
-
-                {/* Search & List */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="p-4 border-b border-slate-100 bg-slate-50">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                            <input
-                                type="text"
-                                placeholder="Buscar paciente por nome..."
-                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                            />
+                            <button
+                                onClick={() => {
+                                    resetPacienteForm();
+                                    setShowNewPatientForm(!showNewPatientForm);
+                                }}
+                                className={`btn ${showNewPatientForm ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'btn-primary'}`}
+                            >
+                                {showNewPatientForm ? <div className="flex items-center gap-2">Cancelar</div> : <div className="flex items-center gap-2"><Plus size={20} /> Novo Paciente</div>}
+                            </button>
                         </div>
                     </div>
 
-                    <div className="divide-y divide-slate-100">
-                        {loading ? (
-                            <div className="p-8 text-center text-slate-500">Carregando...</div>
-                        ) : filteredPacientes.length === 0 ? (
-                            <div className="p-8 text-center text-slate-500">
-                                {searchTerm ? 'Nenhum paciente encontrado.' : 'Nenhum paciente cadastrado.'}
-                            </div>
-                        ) : (
-                            filteredPacientes.map(paciente => (
-                                <div
-                                    key={paciente.id}
-                                    onClick={() => handleSelectPaciente(paciente)}
-                                    className="p-4 hover:bg-slate-50 cursor-pointer flex items-center justify-between group transition-colors"
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 bg-[var(--primary-light)] text-[var(--primary)] rounded-full flex items-center justify-center font-bold">
-                                            {paciente.nome.charAt(0).toUpperCase()}
-                                        </div>
-                                        <div>
-                                            <h3 className="font-bold text-slate-900 group-hover:text-[var(--primary)] transition-colors">{paciente.nome}</h3>
-
-                                            {/* Registered By */}
-                                            <div className="text-xs text-slate-400 flex items-center gap-1 mb-1">
-                                                <User size={10} />
-                                                <span>Profissional: {teamNames[paciente.last_professional_id || ''] || teamNames[paciente.user_id || ''] || '...'}</span>
-                                            </div>
-
-                                            <div className="flex items-center gap-3 text-sm text-slate-500">
-                                                {paciente.telefone && (
-                                                    <span className="flex items-center gap-1"><Phone size={12} /> {paciente.telefone}</span>
-                                                )}
-                                                {paciente.data_nascimento && (
-                                                    <span className="flex items-center gap-1">
-                                                        <Calendar size={12} />
-                                                        {differenceInYears(new Date(), parseISO(paciente.data_nascimento))} anos
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        {paciente.telefone && (
-                                            <button
-                                                onClick={(e) => openWhatsApp(e, paciente.telefone)}
-                                                className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                                                title="Enviar WhatsApp"
-                                            >
-                                                <MessageCircle size={16} />
-                                            </button>
-                                        )}
-                                        <button
-                                            onClick={(e) => handleEditPacienteClick(e, paciente)}
-                                            className="p-2 text-slate-400 hover:text-[var(--primary)] hover:bg-[var(--primary-light)] rounded-lg transition-colors"
-                                            title="Editar"
-                                        >
-                                            <Edit size={16} />
-                                        </button>
-                                        <div className="text-slate-300 pl-2">
-                                            ➤
-                                        </div>
-                                    </div>
+                    {/* New/Edit Patient Form (Collapsible) */}
+                    {showNewPatientForm && (
+                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-4">
+                            <h3 className="font-bold mb-4">{isEditingPaciente ? 'Editar Paciente' : 'Cadastro de Paciente'}</h3>
+                            <form onSubmit={handleSavePaciente} className="flex flex-col md:flex-row gap-4 items-end">
+                                <div className="flex-1 w-full">
+                                    <label className="block text-sm font-medium mb-1">Nome Completo</label>
+                                    <input
+                                        className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                        value={novoPaciente.nome}
+                                        onChange={e => setNovoPaciente({ ...novoPaciente, nome: e.target.value })}
+                                        required
+                                    />
                                 </div>
-                            ))
-                        )}
+                                <div className="w-full md:w-48">
+                                    <label className="block text-sm font-medium mb-1">Telefone</label>
+                                    <input
+                                        className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                        value={novoPaciente.telefone}
+                                        onChange={e => setNovoPaciente({ ...novoPaciente, telefone: e.target.value })}
+                                        placeholder="(00) 00000-0000"
+                                    />
+                                </div>
+                                <div className="w-full md:w-40">
+                                    <label className="block text-sm font-medium mb-1">D. Nascimento</label>
+                                    <input
+                                        type="date"
+                                        className="w-full p-2 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                        value={novoPaciente.data_nascimento}
+                                        onChange={e => setNovoPaciente({ ...novoPaciente, data_nascimento: e.target.value })}
+                                    />
+                                </div>
+                                <button type="submit" className="btn btn-primary w-full md:w-auto">
+                                    {isEditingPaciente ? 'Atualizar' : 'Salvar'}
+                                </button>
+                            </form>
+                        </div>
+                    )}
+
+                    {/* Search & List */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="p-4 border-b border-slate-100 bg-slate-50">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar paciente por nome..."
+                                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="divide-y divide-slate-100">
+                            {loading ? (
+                                <div className="p-8 text-center text-slate-500">Carregando...</div>
+                            ) : filteredPacientes.length === 0 ? (
+                                <div className="p-8 text-center text-slate-500">
+                                    {searchTerm ? 'Nenhum paciente encontrado.' : 'Nenhum paciente cadastrado.'}
+                                </div>
+                            ) : (
+                                filteredPacientes.map(paciente => (
+                                    <div
+                                        key={paciente.id}
+                                        onClick={() => handleSelectPaciente(paciente)}
+                                        className="p-4 hover:bg-slate-50 cursor-pointer flex items-center justify-between group transition-colors"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 bg-[var(--primary-light)] text-[var(--primary)] rounded-full flex items-center justify-center font-bold">
+                                                {paciente.nome.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-slate-900 group-hover:text-[var(--primary)] transition-colors">{paciente.nome}</h3>
+
+                                                {/* Registered By */}
+                                                <div className="text-xs text-slate-400 flex items-center gap-1 mb-1">
+                                                    <User size={10} />
+                                                    <span>Profissional: {teamNames[paciente.last_professional_id || ''] || teamNames[paciente.user_id || ''] || '...'}</span>
+                                                </div>
+
+                                                <div className="flex items-center gap-3 text-sm text-slate-500">
+                                                    {paciente.telefone && (
+                                                        <span className="flex items-center gap-1"><Phone size={12} /> {paciente.telefone}</span>
+                                                    )}
+                                                    {paciente.data_nascimento && (
+                                                        <span className="flex items-center gap-1">
+                                                            <Calendar size={12} />
+                                                            {differenceInYears(new Date(), parseISO(paciente.data_nascimento))} anos
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            {paciente.telefone && (
+                                                <button
+                                                    onClick={(e) => openWhatsApp(e, paciente.telefone)}
+                                                    className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                                    title="Enviar WhatsApp"
+                                                >
+                                                    <MessageCircle size={16} />
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={(e) => handleEditPacienteClick(e, paciente)}
+                                                className="p-2 text-slate-400 hover:text-[var(--primary)] hover:bg-[var(--primary-light)] rounded-lg transition-colors"
+                                                title="Editar"
+                                            >
+                                                <Edit size={16} />
+                                            </button>
+                                            <div className="text-slate-300 pl-2">
+                                                ➤
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
                     </div>
                 </div>
-            </div>
+                <ConfirmModal
+                    isOpen={confirmModal.isOpen}
+                    onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                    onConfirm={confirmModal.onConfirm}
+                    title={confirmModal.title}
+                    message={confirmModal.message}
+                    variant={confirmModal.variant}
+                    confirmText={confirmModal.confirmText}
+                />
+            </>
         );
     }
 
@@ -853,9 +913,31 @@ export const Pacientes = () => {
                     consultas={consultas}
                     companyName={user?.user_metadata?.company_name}
                 />
+                <ConfirmModal
+                    isOpen={confirmModal.isOpen}
+                    onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                    onConfirm={confirmModal.onConfirm}
+                    title={confirmModal.title}
+                    message={confirmModal.message}
+                    variant={confirmModal.variant}
+                    confirmText={confirmModal.confirmText}
+                />
             </>
         );
     }
 
-    return <div>Carregando...</div>;
+    return (
+        <>
+            <div>Carregando...</div>
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                variant={confirmModal.variant}
+                confirmText={confirmModal.confirmText}
+            />
+        </>
+    );
 };

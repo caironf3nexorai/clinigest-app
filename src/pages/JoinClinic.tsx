@@ -125,7 +125,7 @@ export const JoinClinic = () => {
 
         } catch (err: any) {
             setErrorMsg(err.message);
-            alert('Erro: ' + err.message);
+            // Error is shown via toast and errorMsg state
         } finally {
             setLoading(false);
         }

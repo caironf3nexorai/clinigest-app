@@ -10,6 +10,8 @@ import { supabase } from '../lib/supabase';
 import { Procedure, Paciente, Consulta, AppointmentStatus } from '../types/db';
 import { useAuth } from '../contexts/AuthContext';
 import { useFeatureFlag } from '../hooks/useFeatureFlag';
+import { useToast } from '../components/Toast';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 const locales = {
     'pt-BR': ptBR,
@@ -42,6 +44,7 @@ const GOOGLE_EVENT_COLORS: Record<string, string> = {
 
 const CalendarView = () => {
     const { user, profile } = useAuth();
+    const toast = useToast();
     const showFinance = useFeatureFlag('financial_module');
     const isSimpleMode = profile?.plan_config?.simple_mode || false;
     const isDentist = profile?.role === 'dentist';
@@ -77,6 +80,7 @@ const CalendarView = () => {
         payment_method: 'none',
         installments: 1
     });
+    const [showNoShowConfirm, setShowNoShowConfirm] = useState(false);
 
     // Mapped State
     const [dentistMap, setDentistMap] = useState<Record<string, string>>({}); // CalendarID -> UserID
@@ -177,10 +181,10 @@ const CalendarView = () => {
         } catch (error: any) {
             console.error("Error loading calendar data", error);
             if (error?.response?.status === 401) {
-                alert("Sessão do Google expirou. Por favor, conecte novamente.");
-                logout(); // Auto-logout to clear invalid state
+                toast.error("Sessão do Google expirou. Por favor, conecte novamente.");
+                logout();
             } else {
-                alert("Erro ao carregar agenda. Verifique as permissões.");
+                toast.error("Erro ao carregar agenda. Verifique as permissões.");
             }
         } finally {
             setIsLoading(false);
@@ -302,7 +306,10 @@ const CalendarView = () => {
     // Action: Link/Create Appointment
     // Action: Link/Create Appointment
     const handleLinkAppointment = async () => {
-        if (!selectedPatientId) return alert('Selecione um paciente');
+        if (!selectedPatientId) {
+            toast.warning('Selecione um paciente');
+            return;
+        }
         setLoadingLink(true);
         try {
             // Determine Professional (based on Calendar Owner)
@@ -325,7 +332,7 @@ const CalendarView = () => {
                 } else {
                     // Critical Error for Secretaries in PRO/MULTI Mode
                     const errMessage = `ERRO DE VINCULAÇÃO:\n\nNão identifiquei o Dentista desta agenda (${calendarId}).\n\nNo Plano Pro/Equipe, é necessário vincular o ID da agenda ao Dentista na tela de 'Equipe'.`;
-                    alert(errMessage);
+                    toast.error(errMessage);
                     console.error('Link Blocked: Missing Dentist Mapping', calendarId);
                     setLoadingLink(false);
                     return;
@@ -351,9 +358,9 @@ const CalendarView = () => {
             const { data, error } = await supabase.from('consultas').insert(payload).select().single();
             if (error) throw error;
             setLinkedAppointment(data as any);
-            alert('Vinculado com sucesso!');
+            toast.success('Vinculado com sucesso!');
         } catch (err: any) {
-            alert('Erro ao vincular: ' + err.message);
+            toast.error('Erro ao vincular: ' + err.message);
         } finally {
             setLoadingLink(false);
         }
@@ -414,7 +421,7 @@ const CalendarView = () => {
         } catch (error: any) {
             console.error('Failed to update Google Calendar event', error);
             if (error?.response?.status === 401) {
-                alert("Sessão do Google EXPIROU. Desconecte e conecte novamente a agenda.");
+                toast.error("Sessão do Google EXPIROU. Desconecte e conecte novamente a agenda.");
             } else {
                 console.warn("Erro ao atualizar Google Calendar:", error);
             }
@@ -504,19 +511,24 @@ const CalendarView = () => {
             } as any);
 
             setShowCompletionModal(false);
-            alert(`Atendimento finalizado com sucesso! Comissão: R$ ${commission.toFixed(2)}`);
+            toast.success(`Atendimento finalizado com sucesso! Comissão: R$ ${commission.toFixed(2)}`);
 
         } catch (err: any) {
-            alert('Erro: ' + err.message);
+            toast.error('Erro: ' + err.message);
         } finally {
             setLoadingLink(false);
         }
     };
 
     // Action: No Show
-    const handleNoShow = async () => {
+    const handleNoShow = () => {
         if (!linkedAppointment) return;
-        if (!confirm('Marcar como Falta?')) return;
+        setShowNoShowConfirm(true);
+    };
+
+    const confirmNoShow = async () => {
+        if (!linkedAppointment) return;
+        setShowNoShowConfirm(false);
 
         const { error } = await supabase
             .from('consultas')
@@ -525,11 +537,14 @@ const CalendarView = () => {
 
         if (!error) {
             setLinkedAppointment({ ...linkedAppointment, status: 'no_show', recorded_commission: 0 } as any);
+            toast.success('Marcado como falta.');
 
             // Google Calendar Sync: Add [FALTOU] tag & RED color (11)
             if (selectedEvent?.resource?.calendarId && selectedEvent?.id) {
                 await updateGoogleEvent(selectedEvent.resource.calendarId, selectedEvent.id, selectedEvent.summary || '', '[FALTOU]', '11');
             }
+        } else {
+            toast.error('Erro ao marcar falta.');
         }
     };
 
@@ -954,6 +969,16 @@ const CalendarView = () => {
                     }}
                 />
             </div>
+
+            <ConfirmModal
+                isOpen={showNoShowConfirm}
+                onClose={() => setShowNoShowConfirm(false)}
+                onConfirm={confirmNoShow}
+                title="Marcar como Falta"
+                message="Tem certeza que deseja marcar este paciente como falta?"
+                variant="warning"
+                confirmText="Marcar Falta"
+            />
         </div>
     );
 };
