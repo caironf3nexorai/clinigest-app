@@ -19,31 +19,18 @@ export async function exchangeCodeForTokens(
     redirectUri: string,
     userId: string
 ): Promise<TokenResponse> {
-    // Ensure session is refreshed after redirect
-    console.log('🔄 Refreshing session...');
-    await supabase.auth.refreshSession();
-
-    // Get session for auth token
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
-    console.log('📋 Session available:', !!accessToken);
-
-    if (!accessToken) {
-        throw new Error('Sessão não disponível. Faça login novamente.');
-    }
-
     // Get Supabase URL and anon key from environment
     const SUPABASE_URL = (import.meta as any).env.VITE_SUPABASE_URL;
     const SUPABASE_ANON_KEY = (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
     const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/google-oauth`;
 
-    // Call Edge Function with proper headers
+    // Call Edge Function with anon key as Bearer token (works for public Edge Functions)
     console.log('📡 Calling Edge Function via fetch...', EDGE_FUNCTION_URL);
     const response = await fetch(EDGE_FUNCTION_URL, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,  // Use anon key as Bearer
             'apikey': SUPABASE_ANON_KEY,
         },
         body: JSON.stringify({
