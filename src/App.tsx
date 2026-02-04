@@ -4,6 +4,7 @@ import { Layout } from './components/Layout';
 import { RequireRole } from './components/RequireRole';
 import { Dashboard, Custos, Pacientes, Login, Register, Configuracoes, SubscriptionExpired, Agenda, AdminDashboard, Procedimentos, Financeiro, Equipe, Comissoes, JoinClinic } from './pages';
 import { ForgotPassword } from './pages/ForgotPassword';
+import GoogleOAuthCallback from './pages/GoogleOAuthCallback';
 import { ToastProvider } from './components/Toast';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -87,6 +88,13 @@ function App() {
             } />
 
             <Route path="/entrar/:token" element={<JoinClinic />} />
+
+            {/* Google OAuth Callback - handles redirect after Google login */}
+            <Route path="/oauth/google/callback" element={
+              <RequireAuth ignoreSubscription={true}>
+                <GoogleOAuthCallback />
+              </RequireAuth>
+            } />
 
             <Route path="/subscription-expired" element={
               <RequireAuth ignoreSubscription={true}>

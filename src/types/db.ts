@@ -19,6 +19,9 @@ export type Profile = {
     plan_config: PlanConfig; // Feature Flags
     linked_calendar_id?: string; // Google Calendar ID for synchronization
     role?: 'clinic_owner' | 'dentist' | 'secretary' | 'super_admin'; // Role-based access
+    google_refresh_token?: string; // OAuth refresh token for Google Calendar
+    google_access_token?: string; // OAuth access token for API calls
+    google_token_expires_at?: string; // Token expiration timestamp
 };
 
 export type Procedure = {

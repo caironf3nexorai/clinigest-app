@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useFeatureFlag } from '../hooks/useFeatureFlag';
 import { useToast } from '../components/Toast';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { getValidToken, clearGoogleTokens, buildAuthUrl } from '../lib/googleOAuth';
 
 const locales = {
     'pt-BR': ptBR,
@@ -57,6 +58,8 @@ const CalendarView = () => {
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [selectedEvent, setSelectedEvent] = useState<any>(null);
     const [accessToken, setAccessToken] = useState<string | null>(null);
+    const [tokenExpiry, setTokenExpiry] = useState<Date | null>(null);
+    const [needsReauth, setNeedsReauth] = useState(false);
 
     const [date, setDate] = useState(new Date());
     const [view, setView] = useState<any>('month');
@@ -113,35 +116,108 @@ const CalendarView = () => {
                     setDentistMap(map);
                 });
 
-            // Restore Google Session
-            const storedToken = localStorage.getItem('google_access_token');
-            if (storedToken) {
-                setAccessToken(storedToken);
-                setIsConnected(true);
-                loadAllCalendarsAndEvents(storedToken);
-            }
+            // Restore Google Session using Edge Function (auto-refreshes if needed)
+            const restoreSession = async () => {
+                try {
+                    // Use the Edge Function to get a valid token (auto-refreshes)
+                    const tokenResponse = await getValidToken(user.id);
+
+                    if (tokenResponse.needs_reconnect) {
+                        // No valid token and can't refresh - need user to reconnect
+                        console.log('Google session expired, need reconnect');
+                        setNeedsReauth(true);
+                        toast.warning('Sua sessão do Google expirou. Clique em Conectar para renovar.');
+                        return;
+                    }
+
+                    if (tokenResponse.access_token) {
+                        setAccessToken(tokenResponse.access_token);
+                        setTokenExpiry(tokenResponse.expires_at ? new Date(tokenResponse.expires_at) : null);
+                        setIsConnected(true);
+                        setNeedsReauth(false);
+                        await loadAllCalendarsAndEvents(tokenResponse.access_token);
+                        console.log('Google session restored/refreshed successfully');
+                    }
+                } catch (error) {
+                    console.error('Error restoring Google session:', error);
+                    // Fallback to localStorage for backwards compatibility
+                    const localToken = localStorage.getItem('google_access_token');
+                    if (localToken) {
+                        setAccessToken(localToken);
+                        setIsConnected(true);
+                        loadAllCalendarsAndEvents(localToken);
+                    }
+                }
+            };
+
+            restoreSession();
         }
     }, [user]);
 
-    // Login Hook
-    const login = useGoogleLogin({
+    // Popup Login Hook (fallback - doesn't support refresh tokens)
+    const loginPopup = useGoogleLogin({
         scope: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
         onSuccess: async (tokenResponse) => {
-            localStorage.setItem('google_access_token', tokenResponse.access_token);
-            setAccessToken(tokenResponse.access_token);
+            const token = tokenResponse.access_token;
+            const expiryTime = new Date(Date.now() + (tokenResponse.expires_in || 3600) * 1000);
+
+            localStorage.setItem('google_access_token', token);
+
+            if (user) {
+                await supabase
+                    .from('profiles')
+                    .update({
+                        google_access_token: token,
+                        google_token_expires_at: expiryTime.toISOString()
+                    })
+                    .eq('id', user.id);
+            }
+
+            setAccessToken(token);
+            setTokenExpiry(expiryTime);
             setIsConnected(true);
-            await loadAllCalendarsAndEvents(tokenResponse.access_token);
+            setNeedsReauth(false);
+            await loadAllCalendarsAndEvents(token);
+            toast.success('Conectado ao Google Calendar!');
         },
-        onError: error => console.error('Login Failed:', error)
+        onError: error => {
+            console.error('Login Failed:', error);
+            toast.error('Erro ao conectar com Google. Tente novamente.');
+        }
     });
 
-    const logout = () => {
+    // Redirect Login (preferred - supports refresh tokens for persistent sessions)
+    const loginWithRedirect = () => {
+        const clientId = (import.meta as any).env.VITE_GOOGLE_CLIENT_ID;
+        const redirectUri = `${window.location.origin}/oauth/google/callback`;
+        const scopes = [
+            'https://www.googleapis.com/auth/calendar.readonly',
+            'https://www.googleapis.com/auth/calendar.events'
+        ];
+
+        const authUrl = buildAuthUrl(clientId, redirectUri, scopes);
+        window.location.href = authUrl;
+    };
+
+    // Use redirect login by default for persistent sessions
+    const login = loginWithRedirect;
+
+    const logout = async () => {
         localStorage.removeItem('google_access_token');
+
+        // Clear from Supabase using the service
+        if (user) {
+            await clearGoogleTokens(user.id);
+        }
+
         setAccessToken(null);
+        setTokenExpiry(null);
         setIsConnected(false);
+        setNeedsReauth(false);
         setEvents([]);
         setCalendars([]);
         setSelectedCalendarIds(new Set());
+        toast.info('Desconectado do Google Calendar.');
     };
 
     const loadAllCalendarsAndEvents = async (token: string) => {
@@ -380,7 +456,8 @@ const CalendarView = () => {
             medicamentos: linkedAppointment.medicamentos || '',
             procedure_id: selectedProcedureId || linkedAppointment.procedure_id || '',
             valor: valor.toString(),
-            payment_method: 'none'
+            payment_method: 'none',
+            installments: linkedAppointment.installments || 1
         });
 
         setShowCompletionModal(true);
