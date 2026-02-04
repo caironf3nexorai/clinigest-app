@@ -44,14 +44,18 @@ export default function GoogleOAuthCallback() {
                 // Get the redirect URI (current origin + callback path)
                 const redirectUri = `${window.location.origin}/oauth/google/callback`;
 
-                console.log('Exchanging code for tokens...', { redirectUri, userId: user.id });
+                console.log('🔐 Starting OAuth exchange...', {
+                    redirectUri,
+                    userId: user.id,
+                    code: code.substring(0, 20) + '...'
+                });
 
                 // Exchange code for tokens via Edge Function
                 const tokens = await exchangeCodeForTokens(code, redirectUri, user.id);
 
-                console.log('Token exchange response:', tokens);
+                console.log('✅ Token exchange response:', tokens);
 
-                if (tokens.access_token) {
+                if (tokens?.access_token) {
                     // Store in localStorage for immediate use
                     localStorage.setItem('google_access_token', tokens.access_token);
                     setStatus('success');
@@ -61,10 +65,11 @@ export default function GoogleOAuthCallback() {
                         navigate('/agenda', { replace: true });
                     }, 2000);
                 } else {
-                    throw new Error(tokens.error || 'Tokens não retornados');
+                    throw new Error(tokens?.error || 'Tokens não retornados');
                 }
             } catch (err: any) {
-                console.error('Token exchange failed:', err);
+                console.error('❌ Token exchange failed:', err);
+                console.error('❌ Error details:', JSON.stringify(err, Object.getOwnPropertyNames(err)));
                 setStatus('error');
                 // Show more detailed error
                 const errorMsg = err.message || 'Erro ao trocar código por tokens.';
