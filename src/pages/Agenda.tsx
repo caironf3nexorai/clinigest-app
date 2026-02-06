@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useFeatureFlag } from '../hooks/useFeatureFlag';
 import { useToast } from '../components/Toast';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { MultiProcedureSelect } from '../components/MultiProcedureSelect';
 import { getValidToken, clearGoogleTokens, buildAuthUrl } from '../lib/googleOAuth';
 
 const locales = {
@@ -79,11 +80,13 @@ const CalendarView = () => {
         evolucao: '',
         medicamentos: '',
         procedure_id: '',
+        procedimento: '', // Added for Multi-select
         valor: '',
         payment_method: 'none',
         installments: 1
     });
     const [showNoShowConfirm, setShowNoShowConfirm] = useState(false);
+    const [isManualPrice, setIsManualPrice] = useState(false); // Manual Override Toggle
 
     // Mapped State
     const [dentistMap, setDentistMap] = useState<Record<string, string>>({}); // CalendarID -> UserID
@@ -447,14 +450,18 @@ const CalendarView = () => {
         if (!linkedAppointment) return;
 
         // Pre-fill form
-        const proc = procedures.find(p => p.id === selectedProcedureId || p.id === linkedAppointment.procedure_id);
+        const proc = procedures.find(p => p.id === (selectedProcedureId || linkedAppointment.procedure_id));
         const valor = proc ? proc.price : 0;
+
+        // Determine Procedimento String (Legacy ID -> Name fallback)
+        const procedimentoStr = linkedAppointment.procedimento || (proc ? proc.name : '');
 
         setCompletionForm({
             queixa: linkedAppointment.queixa || '',
             evolucao: linkedAppointment.evolucao || '',
             medicamentos: linkedAppointment.medicamentos || '',
             procedure_id: selectedProcedureId || linkedAppointment.procedure_id || '',
+            procedimento: procedimentoStr,
             valor: valor.toString(),
             payment_method: 'none',
             installments: linkedAppointment.installments || 1
@@ -514,7 +521,26 @@ const CalendarView = () => {
 
         try {
             let commission = 0;
-            const finalProcedureId = completionForm.procedure_id || selectedProcedureId;
+            const procedimentoStr = completionForm.procedimento || '';
+
+            // Try to resolve a Single Procedure ID for Commission/FK purposes
+            // This logic allows maintaining FKs for single-procedure events
+            let finalProcedureId: string | null = null;
+
+            // 1. Try completionForm ID (if legacy)
+            if (completionForm.procedure_id) finalProcedureId = completionForm.procedure_id;
+
+            // 2. If multi-select string is set, check if it maps to a single known procedure
+            if (procedimentoStr && !procedimentoStr.includes(',')) {
+                // If simple string (no details), try to find by Name
+                const simpleName = procedimentoStr.replace(/\s*\(.*\)$/, '').trim();
+                const exactMatch = procedures.find(p => p.name === simpleName);
+                if (exactMatch) finalProcedureId = exactMatch.id;
+                // If not found, it's a custom or multi string, so id = null
+            } else {
+                // Multi or Complex => No single ID
+                finalProcedureId = null;
+            }
 
             if (finalProcedureId) {
                 const proc = procedures.find(p => p.id === finalProcedureId);
@@ -550,7 +576,7 @@ const CalendarView = () => {
                 .update({
                     status: 'completed',
                     procedure_id: finalProcedureId || null,
-                    procedimento: finalProcedureId ? (procedures.find(p => p.id === finalProcedureId)?.name || '') : '', // Save Name Snapshot
+                    procedimento: procedimentoStr, // Save the full multi-select string
                     recorded_commission: commission,
                     payment_method: completionForm.payment_method, // Fix: Save Payment Method
                     installments: completionForm.payment_method === 'card' ? completionForm.installments : 1, // Fix: 1 for others (A vista)
@@ -831,26 +857,17 @@ const CalendarView = () => {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Procedimento</label>
-                                    <select
-                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-white"
-                                        value={completionForm.procedure_id}
-                                        onChange={e => {
-                                            const pid = e.target.value;
-                                            const proc = procedures.find(p => p.id === pid);
-                                            setCompletionForm({
-                                                ...completionForm,
-                                                procedure_id: pid,
-                                                valor: proc ? proc.price.toString() : completionForm.valor
-                                            });
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Procedimento(s) Realizado(s)</label>
+                                    <MultiProcedureSelect
+                                        value={completionForm.procedimento}
+                                        onChange={value => setCompletionForm({ ...completionForm, procedimento: value })}
+                                        onPriceChange={total => {
+                                            if (!isManualPrice) {
+                                                setCompletionForm(prev => ({ ...prev, valor: total.toFixed(2) }));
+                                            }
                                         }}
-                                        required
-                                    >
-                                        <option value="">Selecione...</option>
-                                        {procedures.map(p => (
-                                            <option key={p.id} value={p.id}>{p.name}</option>
-                                        ))}
-                                    </select>
+                                        placeholder="Selecione..."
+                                    />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1">Forma de Pagamento</label>
@@ -885,13 +902,25 @@ const CalendarView = () => {
                                     </div>
                                 )}
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Valor Cobrado (R$)</label>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="block text-sm font-medium text-slate-700">Valor (R$)</label>
+                                        <label className="flex items-center gap-1 text-xs text-slate-500 cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={isManualPrice}
+                                                onChange={e => setIsManualPrice(e.target.checked)}
+                                                className="rounded text-[var(--primary)] focus:ring-[var(--primary)]"
+                                            />
+                                            Manual
+                                        </label>
+                                    </div>
                                     <input
                                         type="number"
                                         step="0.01"
-                                        className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
+                                        className={`w-full p-2.5 border rounded-lg outline-none text-sm transition-colors ${isManualPrice ? 'bg-white border-slate-300 focus:ring-2 focus:ring-emerald-500' : 'bg-slate-100 border-slate-200 text-slate-500'}`}
                                         value={completionForm.valor}
                                         onChange={e => setCompletionForm({ ...completionForm, valor: e.target.value })}
+                                        readOnly={!isManualPrice}
                                         required
                                     />
                                 </div>

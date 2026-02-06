@@ -10,6 +10,7 @@ import PatientPrescriptions from '../components/PatientPrescriptions';
 import { PatientPrintView, printPatientRecord } from '../components/PatientPrintView';
 import { useToast } from '../components/Toast';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { MultiProcedureSelect } from '../components/MultiProcedureSelect';
 
 export const Pacientes = () => {
     const { user, profile } = useAuth();
@@ -54,6 +55,7 @@ export const Pacientes = () => {
         data_consulta: new Date().toISOString().split('T')[0],
         payment_method: 'none'
     });
+    const [isManualPrice, setIsManualPrice] = useState(false); // Manual Override Toggle
 
     useEffect(() => {
         if (user) {
@@ -318,11 +320,33 @@ export const Pacientes = () => {
         setConfirmModal({
             isOpen: true,
             title: 'Excluir Atendimento',
-            message: 'Apagar este registro de atendimento?',
+            message: 'Apagar este registro de atendimento? Se houver agendamento no Google Calendar, ele também será removido.',
             variant: 'danger',
             confirmText: 'Excluir',
             onConfirm: async () => {
                 try {
+                    // 1. Fetch details to get Google Event ID & Professional
+                    const { data: consulta } = await supabase
+                        .from('consultas')
+                        .select('google_event_id, user_id')
+                        .eq('id', id)
+                        .single();
+
+                    if (consulta?.google_event_id && consulta?.user_id) {
+                        // 2. Fetch Professional's Profile to get Calendar ID
+                        const { data: professional } = await supabase
+                            .from('profiles')
+                            .select('linked_calendar_id')
+                            .eq('id', consulta.user_id)
+                            .single();
+
+                        const calendarId = professional?.linked_calendar_id || 'primary';
+
+                        // 3. Delete from Google Calendar
+                        await deleteGoogleEvent(consulta.user_id, calendarId, consulta.google_event_id);
+                    }
+
+                    // 4. Delete from Supabase
                     await supabase.from('consultas').delete().eq('id', id);
                     setConsultas(consultas.filter(c => c.id !== id));
                     toast.success('Atendimento excluído.');
@@ -702,12 +726,15 @@ export const Pacientes = () => {
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium mb-1">Procedimento Realizado</label>
-                                        <input
-                                            type="text"
-                                            className="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                        <MultiProcedureSelect
                                             value={novaConsulta.procedimento}
-                                            onChange={e => setNovaConsulta({ ...novaConsulta, procedimento: e.target.value })}
-                                            placeholder="Ex: Limpeza, Consulta, Exame"
+                                            onChange={value => setNovaConsulta({ ...novaConsulta, procedimento: value })}
+                                            onPriceChange={total => {
+                                                if (!isManualPrice) {
+                                                    setNovaConsulta(prev => ({ ...prev, valor_consulta: total.toFixed(2) }));
+                                                }
+                                            }}
+                                            placeholder="Selecione os procedimentos..."
                                         />
                                     </div>
                                     <div>
@@ -721,13 +748,25 @@ export const Pacientes = () => {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium mb-1">Valor Cobrado (R$)</label>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="block text-sm font-medium">Valor Cobrado (R$)</label>
+                                            <label className="flex items-center gap-1 text-xs text-slate-500 cursor-pointer select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isManualPrice}
+                                                    onChange={e => setIsManualPrice(e.target.checked)}
+                                                    className="rounded text-[var(--primary)] focus:ring-[var(--primary)]"
+                                                />
+                                                Manual
+                                            </label>
+                                        </div>
                                         <input
                                             type="number"
                                             step="0.01"
-                                            className="w-full p-2 bg-slate-50 border rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                            className={`w-full p-2 border rounded-lg outline-none transition-colors ${isManualPrice ? 'bg-slate-50 focus:ring-2 focus:ring-[var(--primary)]' : 'bg-slate-200 text-slate-500'}`}
                                             value={novaConsulta.valor_consulta}
                                             onChange={e => setNovaConsulta({ ...novaConsulta, valor_consulta: e.target.value })}
+                                            readOnly={!isManualPrice}
                                             placeholder="0.00"
                                         />
                                     </div>
