@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Save, AlertCircle, Lock, Edit3 } from 'lucide-react';
+import { Save, AlertCircle, Lock as LockIcon, Edit3 } from 'lucide-react';
 import type { Anamnese } from '../types/db';
 import { useToast } from './Toast';
 
@@ -122,7 +122,7 @@ export const PatientAnamnese: React.FC<PatientAnamneseProps> = ({ patientId }) =
                 )}
                 {!canModify && (
                     <div className="flex items-center gap-2 text-amber-600 text-sm bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
-                        <Lock size={14} />
+                        <LockIcon size={14} />
                         <span>Somente o Admin/Dono pode editar</span>
                     </div>
                 )}

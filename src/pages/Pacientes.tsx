@@ -6,6 +6,7 @@ import type { Paciente, Consulta, Anamnese } from '../types/db';
 import { format, parseISO, differenceInYears } from 'date-fns';
 import { PatientAttachments } from '../components/PatientAttachments';
 import { PatientAnamnese } from '../components/PatientAnamnese';
+import PatientPrescriptions from '../components/PatientPrescriptions';
 import { PatientPrintView, printPatientRecord } from '../components/PatientPrintView';
 import { useToast } from '../components/Toast';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -26,7 +27,7 @@ export const Pacientes = () => {
 
     // View State: 'list' | 'details'
     const [view, setView] = useState<'list' | 'details' | 'trash'>('list');
-    const [activeTab, setActiveTab] = useState<'history' | 'attachments' | 'anamnese'>('history');
+    const [activeTab, setActiveTab] = useState<'history' | 'attachments' | 'anamnese' | 'receitas'>('history');
     const [selectedPaciente, setSelectedPaciente] = useState<Paciente | null>(null);
 
     // Data State
@@ -789,12 +790,25 @@ export const Pacientes = () => {
                                         <Stethoscope size={16} /> Anamnese
                                     </div>
                                 </button>
+                                <button
+                                    onClick={() => setActiveTab('receitas')}
+                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'receitas'
+                                        ? 'bg-white text-[var(--primary)] shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Pill size={16} /> Receitas
+                                    </div>
+                                </button>
                             </div>
 
                             {activeTab === 'attachments' ? (
                                 <PatientAttachments patientId={selectedPaciente.id} />
                             ) : activeTab === 'anamnese' ? (
                                 <PatientAnamnese patientId={selectedPaciente.id} />
+                            ) : activeTab === 'receitas' ? (
+                                <PatientPrescriptions paciente={selectedPaciente} />
                             ) : (
                                 <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
                                     {consultas.length === 0 ? (

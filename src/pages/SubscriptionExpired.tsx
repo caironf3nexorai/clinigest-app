@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Lock, LogOut } from 'lucide-react';
+import { Lock as LockIcon, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const SubscriptionExpired = () => {
@@ -30,7 +30,7 @@ export const SubscriptionExpired = () => {
         <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
             <div className="bg-white max-w-md w-full p-8 rounded-2xl shadow-xl text-center border border-slate-200">
                 <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Lock size={32} />
+                    <LockIcon size={32} />
                 </div>
 
                 <h1 className="text-2xl font-bold text-slate-900 mb-2">Acesso Expirado</h1>

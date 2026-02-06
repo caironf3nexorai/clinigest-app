@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Save, Lock, User, AlertCircle, CheckCircle, Upload, Loader2, X, Store } from 'lucide-react';
+import { Save, Lock as LockIcon, User, AlertCircle, CheckCircle, Upload, Loader2, X, Store } from 'lucide-react';
 
 export const Configuracoes = () => {
     const { user } = useAuth();
@@ -12,10 +12,17 @@ export const Configuracoes = () => {
 
     // Profile State
     const [companyName, setCompanyName] = useState('');
+    const [companyCity, setCompanyCity] = useState('');
     const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [logoUrl, setLogoUrl] = useState('');
     const [lastChange, setLastChange] = useState<string | null>(null);
+
+    // Professional Data State (v36)
+    const [cro, setCro] = useState('');
+    const [specialty, setSpecialty] = useState('');
+    const [professionalAddress, setProfessionalAddress] = useState('');
+    const [professionalPhone, setProfessionalPhone] = useState('');
 
     // Password State
     const [currentPassword, setCurrentPassword] = useState('');
@@ -32,16 +39,23 @@ export const Configuracoes = () => {
         // Fetch from public.profiles to get the true state and username
         const { data, error } = await supabase
             .from('profiles')
-            .select('company_name, username, email, company_logo, last_name_change')
+            .select('company_name, company_city, username, email, company_logo, last_name_change, cro, specialty, professional_address, professional_phone')
             .eq('id', user?.id)
             .single();
 
         if (data) {
             setCompanyName(data.company_name || '');
+            setCompanyCity(data.company_city || '');
             setUsername(data.username || '');
             setEmail(data.email || user?.email || '');
             setLogoUrl(data.company_logo || '');
             setLastChange(data.last_name_change);
+
+            // Professional Data
+            setCro(data.cro || '');
+            setSpecialty(data.specialty || '');
+            setProfessionalAddress(data.professional_address || '');
+            setProfessionalPhone(data.professional_phone || '');
         } else {
             // Fallback to session metadata if profile fetch fails
             setCompanyName(user?.user_metadata?.company_name || '');
@@ -117,8 +131,14 @@ export const Configuracoes = () => {
             // 2. Update public.profiles (Source of Truth)
             const updates: any = {
                 company_name: companyName,
-                username: username, // Ensure uniqueness handled by DB constraint
-                company_logo: logoUrl
+                company_city: companyCity,
+                username: username,
+                company_logo: logoUrl,
+                // Professional Data
+                cro: cro,
+                specialty: specialty,
+                professional_address: professionalAddress,
+                professional_phone: professionalPhone
             };
 
             if (isNameChanged || isUserChanged) {
@@ -140,8 +160,11 @@ export const Configuracoes = () => {
                 email: email !== user.email ? email : undefined,
                 data: {
                     company_name: companyName,
+                    company_city: companyCity,
                     company_logo: logoUrl,
-                    username: username
+                    username: username,
+                    // We don't necessarily need professional data in metadata, but nice to have?
+                    // Let's keep metadata light for now unless needed elsewhere
                 }
             });
 
@@ -306,6 +329,16 @@ export const Configuracoes = () => {
                             />
                         </div>
                         <div>
+                            <label className="block text-sm font-medium mb-1">Cidade (para Receituário)</label>
+                            <input
+                                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all"
+                                value={companyCity}
+                                onChange={e => setCompanyCity(e.target.value)}
+                                placeholder="Ex: São Paulo - SP"
+                            />
+                            <p className="text-xs text-slate-400 mt-1">Aparecerá no rodapé das receitas digitais.</p>
+                        </div>
+                        <div>
                             <label className="block text-sm font-medium mb-1">E-mail de Acesso</label>
                             <input
                                 type="email"
@@ -324,10 +357,64 @@ export const Configuracoes = () => {
                     </form>
                 </section>
 
+                {/* Professional Data Settings (New Section) */}
+                <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h2 className="text-lg font-bold mb-6 flex items-center gap-2 border-b border-slate-100 pb-4">
+                        <User size={20} className="text-slate-400" />
+                        Dados do Profissional (Para Receitas)
+                    </h2>
+                    <form onSubmit={handleUpdateProfile} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">CRO / Registro Profissional</label>
+                                <input
+                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all"
+                                    value={cro}
+                                    onChange={e => setCro(e.target.value)}
+                                    placeholder="Ex: 12345-SP"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Especialidade</label>
+                                <input
+                                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all"
+                                    value={specialty}
+                                    onChange={e => setSpecialty(e.target.value)}
+                                    placeholder="Ex: Ortodontista"
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Telefone Profissional</label>
+                            <input
+                                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all"
+                                value={professionalPhone}
+                                onChange={e => setProfessionalPhone(e.target.value)}
+                                placeholder="Telefone que aparecerá na receita"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Endereço do Consultório</label>
+                            <textarea
+                                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all min-h-[80px]"
+                                value={professionalAddress}
+                                onChange={e => setProfessionalAddress(e.target.value)}
+                                placeholder="Endereço completo que aparecerá no rodapé da receita"
+                            />
+                        </div>
+                        <div className="pt-4 flex justify-end">
+                            <button type="submit" disabled={loading} className="btn btn-primary flex items-center gap-2">
+                                {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                                Salvar Dados Profissionais
+                            </button>
+                        </div>
+                    </form>
+                </section>
+
                 {/* Password Settings */}
                 <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                     <h2 className="text-lg font-bold mb-6 flex items-center gap-2 border-b border-slate-100 pb-4">
-                        <Lock size={20} className="text-slate-400" />
+                        <LockIcon size={20} className="text-slate-400" />
                         Segurança
                     </h2>
                     <form onSubmit={handleUpdatePassword} className="space-y-4">

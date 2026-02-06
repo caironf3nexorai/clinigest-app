@@ -22,6 +22,12 @@ export type Profile = {
     google_refresh_token?: string; // OAuth refresh token for Google Calendar
     google_access_token?: string; // OAuth access token for API calls
     google_token_expires_at?: string; // Token expiration timestamp
+    // Professional Fields (Migration v36)
+    cro?: string;
+    specialty?: string;
+    professional_address?: string;
+    professional_phone?: string;
+    company_city?: string;
 };
 
 export type Procedure = {
@@ -142,3 +148,54 @@ export interface DentistCommission {
     commission_percentage: number;
     active: boolean;
 }
+
+// Prescription Types
+export interface Medicamento {
+    nome: string;
+    dosagem: string;
+    via: string; // oral, tópico, injetável, etc
+    frequencia: string; // 8/8h, 12/12h, etc
+    duracao: string; // 7 dias, 14 dias, uso contínuo
+    observacoes?: string;
+}
+
+export interface Prescricao {
+    id: string;
+    paciente_id: string;
+    dentista_id: string;
+    consulta_id?: string;
+
+    // Prescription data
+    medicamentos: Medicamento[];
+    observacoes_gerais?: string;
+
+    // Signature
+    tipo_assinatura: 'simples' | 'qualificada' | 'icp_brasil';
+    assinatura_hash?: string;
+    assinado_em?: string;
+
+    // Dentist snapshot
+    dentista_nome: string;
+    dentista_cro?: string;
+    dentista_especialidade?: string;
+    dentista_endereco?: string;
+    dentista_telefone?: string;
+
+    // Clinic info
+    clinica_nome?: string;
+    clinica_cidade?: string;
+    clinica_logo_url?: string;
+
+    // PDF
+    pdf_url?: string;
+    pdf_gerado_em?: string;
+
+    // Audit
+    created_at: string;
+    updated_at: string;
+    owner_id: string;
+
+    // Joined data
+    paciente?: Paciente;
+}
+
