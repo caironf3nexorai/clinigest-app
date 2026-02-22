@@ -726,8 +726,14 @@ const CalendarView = () => {
 
             let procNames = '';
             if (procedimento) {
-                const procIds = procedimento.split(',').map(id => id.trim());
-                procNames = procIds.map(id => procedures.find(p => p.id === id)?.name).filter(Boolean).join(', ');
+                // MultiProcedureSelect returns a string like "Canal (18), Restauração, Extração (24)"
+                const items = procedimento.split(',').map(s => s.trim()).filter(Boolean);
+                // We want to strip out any text in parenthesis, keeping only "Canal, Restauração, Extração"
+                const cleanedNames = items.map(item => {
+                    const match = item.match(/^(.*?)\s*\(/);
+                    return match ? match[1].trim() : item.trim();
+                });
+                procNames = cleanedNames.join(', ');
             }
             if (!procNames) procNames = 'CONSULTA';
 
