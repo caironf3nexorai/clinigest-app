@@ -739,8 +739,11 @@ const CalendarView = () => {
 
             const valorFormatado = valor_consulta ? parseFloat(valor_consulta).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00';
 
-            // Format example: CONSULTA CAIRON - CLAREAMENTO R$ 1500,00
-            const eventSummary = `CONSULTA ${selectedPatient?.nome?.toUpperCase() || 'PACIENTE'} - ${procNames.toUpperCase()} R$ ${valorFormatado}`;
+            // New Format: TIPO - NOME DO PACIENTE - PROCEDIMENTO - NUMERO DO CELULAR - VALOR DO PROCEDIMENTO
+            // e.g., CONSULTA - BERNARDO - LIMPEZA - (31) 99999-9999 - R$ 500,00
+            const tipoProcedimento = 'CONSULTA'; // Defaulting as requested since there's no specific field for "Exame" yet
+            const tel = selectedPatient?.telefone || 'SEM TELEFONE';
+            const eventSummary = `${tipoProcedimento} - ${selectedPatient?.nome?.toUpperCase() || 'PACIENTE'} - ${procNames.toUpperCase()} - ${tel} - R$ ${valorFormatado}`;
 
             const res = await axios.post(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events`, {
                 summary: eventSummary,
@@ -1205,7 +1208,7 @@ const CalendarView = () => {
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Procedimento <span className="text-red-500">*</span></label>
                                 <MultiProcedureSelect
                                     value={newAppointmentForm.procedimento}
-                                    onChange={value => setNewAppointmentForm({ ...newAppointmentForm, procedimento: value })}
+                                    onChange={value => setNewAppointmentForm(prev => ({ ...prev, procedimento: value }))}
                                     onPriceChange={total => {
                                         if (!isManualAppointmentPrice) {
                                             setNewAppointmentForm(prev => ({ ...prev, valor_consulta: total.toFixed(2) }));
