@@ -103,6 +103,9 @@ const CalendarView = () => {
         calendar_id: ''
     });
 
+    const [isCreatingPatient, setIsCreatingPatient] = useState(false);
+    const [newPatientInlineForm, setNewPatientInlineForm] = useState({ nome: '', telefone: '' });
+
     // Mapped State
     const [dentistMap, setDentistMap] = useState<Record<string, string>>({}); // CalendarID -> UserID
 
@@ -638,6 +641,34 @@ const CalendarView = () => {
         }
     };
 
+    // Action: Create Inline Patient
+    const handleCreatePatientInline = async () => {
+        if (!user || !newPatientInlineForm.nome.trim()) {
+            toast.warning('Nome do paciente é obrigatório');
+            return;
+        }
+
+        try {
+            const { data, error } = await supabase.from('pacientes').insert({
+                user_id: user.id,
+                owner_id: profile?.owner_id || user.id,
+                nome: newPatientInlineForm.nome.trim(),
+                telefone: newPatientInlineForm.telefone.trim() || null
+            }).select().single();
+
+            if (error) throw error;
+
+            setPatients([...patients, data].sort((a, b) => a.nome.localeCompare(b.nome)));
+            setNewAppointmentForm({ ...newAppointmentForm, patient_id: data.id });
+            setIsCreatingPatient(false);
+            setNewPatientInlineForm({ nome: '', telefone: '' });
+            toast.success('Paciente cadastrado com sucesso!');
+        } catch (error: any) {
+            toast.error('Erro ao cadastrar paciente.');
+            console.error(error);
+        }
+    };
+
     // Action: Create Manual Appointment
     const handleCreateAppointment = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1091,18 +1122,65 @@ const CalendarView = () => {
 
                         <form onSubmit={handleCreateAppointment} className="p-6 space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Paciente <span className="text-red-500">*</span></label>
-                                <select
-                                    className="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 bg-slate-50 border focus:ring-2 focus:ring-[var(--primary)] outline-none"
-                                    value={newAppointmentForm.patient_id}
-                                    onChange={e => setNewAppointmentForm({ ...newAppointmentForm, patient_id: e.target.value })}
-                                    required
-                                >
-                                    <option value="">Selecione um paciente...</option>
-                                    {patients.map(p => (
-                                        <option key={p.id} value={p.id}>{p.nome}</option>
-                                    ))}
-                                </select>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-sm font-medium text-slate-700">Paciente <span className="text-red-500">*</span></label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsCreatingPatient(!isCreatingPatient)}
+                                        className="text-xs text-[var(--primary)] hover:underline font-medium"
+                                    >
+                                        {isCreatingPatient ? 'Selecionar Existente' : '+ Novo Paciente'}
+                                    </button>
+                                </div>
+
+                                {isCreatingPatient ? (
+                                    <div className="space-y-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                        <div>
+                                            <input
+                                                className="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 bg-white border outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                                placeholder="Nome completo *"
+                                                value={newPatientInlineForm.nome}
+                                                onChange={e => setNewPatientInlineForm({ ...newPatientInlineForm, nome: e.target.value })}
+                                            />
+                                        </div>
+                                        <div>
+                                            <input
+                                                className="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 bg-white border outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                                                placeholder="Telefone (opcional)"
+                                                value={newPatientInlineForm.telefone}
+                                                onChange={e => setNewPatientInlineForm({ ...newPatientInlineForm, telefone: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="flex justify-end gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsCreatingPatient(false)}
+                                                className="px-3 py-1.5 text-slate-600 bg-slate-200 hover:bg-slate-300 rounded text-xs font-bold transition-colors"
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleCreatePatientInline}
+                                                className="px-3 py-1.5 bg-[var(--primary)] text-white rounded text-xs font-bold hover:bg-[var(--primary-dark)] transition-colors"
+                                            >
+                                                Salvar Paciente
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <select
+                                        className="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 bg-slate-50 border focus:ring-2 focus:ring-[var(--primary)] outline-none"
+                                        value={newAppointmentForm.patient_id}
+                                        onChange={e => setNewAppointmentForm({ ...newAppointmentForm, patient_id: e.target.value })}
+                                        required={!isCreatingPatient}
+                                    >
+                                        <option value="">Selecione um paciente...</option>
+                                        {patients.map(p => (
+                                            <option key={p.id} value={p.id}>{p.nome}</option>
+                                        ))}
+                                    </select>
+                                )}
                             </div>
 
                             <div>
