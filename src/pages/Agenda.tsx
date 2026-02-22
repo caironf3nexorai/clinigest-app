@@ -886,23 +886,15 @@ const CalendarView = () => {
 
                                         {showFinance && (
                                             <div>
-                                                <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Procedimento</label>
-                                                {linkedAppointment.status === 'completed' ? (
-                                                    <div className="text-sm font-medium">
-                                                        {procedures.find(p => p.id === linkedAppointment.procedure_id)?.name || '-'}
-                                                        {linkedAppointment.recorded_commission && <span className="block text-xs text-green-600 font-normal">Comissão: R$ {linkedAppointment.recorded_commission}</span>}
-                                                    </div>
-                                                ) : (
-                                                    <select
-                                                        className="w-full text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                                                        value={selectedProcedureId}
-                                                        onChange={(e) => setSelectedProcedureId(e.target.value)}
-                                                    >
-                                                        <option value="">Selecione...</option>
-                                                        {procedures.map(p => (
-                                                            <option key={p.id} value={p.id}>{p.name} - R$ {p.price}</option>
-                                                        ))}
-                                                    </select>
+                                                <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Procedimento(s)</label>
+                                                <div className="text-sm font-medium">
+                                                    {linkedAppointment.procedimento || procedures.find(p => p.id === linkedAppointment.procedure_id)?.name || '-'}
+                                                </div>
+                                                {linkedAppointment.status === 'scheduled' && typeof linkedAppointment.valor_consulta === 'number' && (
+                                                    <div className="text-xs text-slate-500 mt-0.5">Valor Estimado: R$ {linkedAppointment.valor_consulta.toFixed(2)}</div>
+                                                )}
+                                                {linkedAppointment.status === 'completed' && linkedAppointment.recorded_commission != null && (
+                                                    <div className="text-xs text-green-600 font-normal mt-0.5">Comissão: R$ {Number(linkedAppointment.recorded_commission).toFixed(2)}</div>
                                                 )}
                                             </div>
                                         )}
