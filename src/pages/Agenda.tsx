@@ -96,12 +96,15 @@ const CalendarView = () => {
     const [isCreatingAppointment, setIsCreatingAppointment] = useState(false);
     const [newAppointmentForm, setNewAppointmentForm] = useState({
         patient_id: '',
-        procedure_id: '',
+        procedimento: '',
+        valor_consulta: '',
         date: format(new Date(), 'yyyy-MM-dd'),
         start_time: '08:00',
         end_time: '09:00',
         calendar_id: ''
     });
+
+    const [isManualAppointmentPrice, setIsManualAppointmentPrice] = useState(false);
 
     const [isCreatingPatient, setIsCreatingPatient] = useState(false);
     const [newPatientInlineForm, setNewPatientInlineForm] = useState({ nome: '', telefone: '' });
@@ -673,10 +676,15 @@ const CalendarView = () => {
     const handleCreateAppointment = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        const { patient_id, procedure_id, date, start_time, end_time, calendar_id } = newAppointmentForm;
+        const { patient_id, procedimento, valor_consulta, date, start_time, end_time, calendar_id } = newAppointmentForm;
 
         if (!patient_id) {
             toast.warning('Selecione um paciente');
+            return;
+        }
+
+        if (!procedimento) {
+            toast.warning('Selecione ao menos um procedimento');
             return;
         }
 
@@ -715,9 +723,18 @@ const CalendarView = () => {
             const endDateTime = new Date(`${date}T${end_time}:00`);
 
             const selectedPatient = patients.find(p => p.id === patient_id);
-            const selectedProcedure = procedures.find(p => p.id === procedure_id);
 
-            const eventSummary = `${selectedPatient?.nome} - ${selectedProcedure?.name || 'Consulta'}`;
+            let procNames = '';
+            if (procedimento) {
+                const procIds = procedimento.split(',').map(id => id.trim());
+                procNames = procIds.map(id => procedures.find(p => p.id === id)?.name).filter(Boolean).join(', ');
+            }
+            if (!procNames) procNames = 'CONSULTA';
+
+            const valorFormatado = valor_consulta ? parseFloat(valor_consulta).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00';
+
+            // Format example: CONSULTA CAIRON - CLAREAMENTO R$ 1500,00
+            const eventSummary = `CONSULTA ${selectedPatient?.nome?.toUpperCase() || 'PACIENTE'} - ${procNames.toUpperCase()} R$ ${valorFormatado}`;
 
             const res = await axios.post(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events`, {
                 summary: eventSummary,
@@ -738,7 +755,8 @@ const CalendarView = () => {
                 user_id: professionalId,
                 owner_id: profile?.owner_id || user?.id,
                 paciente_id: patient_id,
-                procedure_id: procedure_id || null,
+                procedimento: procedimento,
+                valor_consulta: valor_consulta ? parseFloat(valor_consulta) : 0,
                 data_consulta: startDateTime.toISOString(),
                 google_event_id: googleEventId,
                 status: 'scheduled' as AppointmentStatus
@@ -756,12 +774,14 @@ const CalendarView = () => {
             // Reset form
             setNewAppointmentForm({
                 patient_id: '',
-                procedure_id: '',
+                procedimento: '',
+                valor_consulta: '',
                 date: format(new Date(), 'yyyy-MM-dd'),
                 start_time: '08:00',
                 end_time: '09:00',
                 calendar_id: isDentist ? profile?.linked_calendar_id || '' : ''
             });
+            setIsManualAppointmentPrice(false);
 
         } catch (err: any) {
             console.error('Error creating appointment:', err);
@@ -1184,17 +1204,41 @@ const CalendarView = () => {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Procedimento (Opcional)</label>
-                                <select
-                                    className="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 bg-slate-50 border focus:ring-2 focus:ring-[var(--primary)] outline-none"
-                                    value={newAppointmentForm.procedure_id}
-                                    onChange={e => setNewAppointmentForm({ ...newAppointmentForm, procedure_id: e.target.value })}
-                                >
-                                    <option value="">Selecione um procedimento...</option>
-                                    {procedures.map(p => (
-                                        <option key={p.id} value={p.id}>{p.name}</option>
-                                    ))}
-                                </select>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Procedimento <span className="text-red-500">*</span></label>
+                                <MultiProcedureSelect
+                                    value={newAppointmentForm.procedimento}
+                                    onChange={value => setNewAppointmentForm({ ...newAppointmentForm, procedimento: value })}
+                                    onPriceChange={total => {
+                                        if (!isManualAppointmentPrice) {
+                                            setNewAppointmentForm(prev => ({ ...prev, valor_consulta: total.toFixed(2) }));
+                                        }
+                                    }}
+                                    placeholder="Selecione os procedimentos..."
+                                />
+                            </div>
+
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-sm font-medium text-slate-700">Valor Estimado (R$)</label>
+                                    <label className="flex items-center gap-1 text-xs text-slate-500 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={isManualAppointmentPrice}
+                                            onChange={e => setIsManualAppointmentPrice(e.target.checked)}
+                                            className="rounded text-[var(--primary)] focus:ring-[var(--primary)]"
+                                        />
+                                        Manual
+                                    </label>
+                                </div>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    className={`w-full p-2.5 border rounded-lg outline-none text-sm transition-colors ${isManualAppointmentPrice ? 'bg-white border-slate-300 focus:ring-2 focus:ring-[var(--primary)]' : 'bg-slate-100 border-slate-200 text-slate-500'}`}
+                                    value={newAppointmentForm.valor_consulta}
+                                    onChange={e => setNewAppointmentForm({ ...newAppointmentForm, valor_consulta: e.target.value })}
+                                    readOnly={!isManualAppointmentPrice}
+                                    required
+                                />
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
