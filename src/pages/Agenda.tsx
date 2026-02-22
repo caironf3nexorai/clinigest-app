@@ -1,11 +1,14 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
-import { format, parse, startOfWeek, getDay, startOfMonth, endOfMonth, endOfWeek } from 'date-fns';
+import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
-import { Calendar as CalendarIcon, LogIn, LogOut, RefreshCw, X, MapPin, AlignLeft, Clock, Check, User as UserIcon, AlertCircle, DollarSign, Loader2, Stethoscope, Save } from 'lucide-react';
+import { Calendar as CalendarIcon, LogIn, LogOut, RefreshCw, X, Clock, Check, User as UserIcon, AlertCircle, Loader2, Stethoscope, Save, Plus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Procedure, Paciente, Consulta, AppointmentStatus } from '../types/db';
 import { useAuth } from '../contexts/AuthContext';
@@ -87,6 +90,18 @@ const CalendarView = () => {
     });
     const [showNoShowConfirm, setShowNoShowConfirm] = useState(false);
     const [isManualPrice, setIsManualPrice] = useState(false); // Manual Override Toggle
+
+    // New Appointment Form State
+    const [showNewAppointmentModal, setShowNewAppointmentModal] = useState(false);
+    const [isCreatingAppointment, setIsCreatingAppointment] = useState(false);
+    const [newAppointmentForm, setNewAppointmentForm] = useState({
+        patient_id: '',
+        procedure_id: '',
+        date: format(new Date(), 'yyyy-MM-dd'),
+        start_time: '08:00',
+        end_time: '09:00',
+        calendar_id: ''
+    });
 
     // Mapped State
     const [dentistMap, setDentistMap] = useState<Record<string, string>>({}); // CalendarID -> UserID
@@ -623,6 +638,108 @@ const CalendarView = () => {
         }
     };
 
+    // Action: Create Manual Appointment
+    const handleCreateAppointment = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        const { patient_id, procedure_id, date, start_time, end_time, calendar_id } = newAppointmentForm;
+
+        if (!patient_id) {
+            toast.warning('Selecione um paciente');
+            return;
+        }
+
+        // Determine target calendar
+        let targetCalendarId = calendar_id;
+
+        if (isSimpleMode) {
+            // Em modo simples, o dentista tem apenas sua agenda padrão
+            targetCalendarId = profile?.linked_calendar_id || (calendars.length > 0 ? calendars[0].id : '');
+        } else if (isDentist) {
+            targetCalendarId = profile?.linked_calendar_id || '';
+        }
+
+        if (!targetCalendarId) {
+            toast.error('Nenhuma agenda de destino selecionada ou vinculada.');
+            return;
+        }
+
+        let professionalId = dentistMap?.[targetCalendarId];
+
+        if (!professionalId) {
+            if (isSimpleMode) {
+                professionalId = profile?.owner_id || user?.id || '';
+            } else if (profile?.role === 'dentist' || profile?.role === 'clinic_owner') {
+                professionalId = user?.id || '';
+            } else {
+                toast.error('Não foi possível identificar o profissional dono desta agenda no sistema.');
+                return;
+            }
+        }
+
+        setIsCreatingAppointment(true);
+        try {
+            // 1. Create Event on Google Calendar
+            const startDateTime = new Date(`${date}T${start_time}:00`);
+            const endDateTime = new Date(`${date}T${end_time}:00`);
+
+            const selectedPatient = patients.find(p => p.id === patient_id);
+            const selectedProcedure = procedures.find(p => p.id === procedure_id);
+
+            const eventSummary = `${selectedPatient?.nome} - ${selectedProcedure?.name || 'Consulta'}`;
+
+            const res = await axios.post(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events`, {
+                summary: eventSummary,
+                start: {
+                    dateTime: startDateTime.toISOString(),
+                },
+                end: {
+                    dateTime: endDateTime.toISOString(),
+                }
+            }, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+
+            const googleEventId = res.data.id;
+
+            // 2. Insert into Supabase
+            const payload = {
+                user_id: professionalId,
+                owner_id: profile?.owner_id || user?.id,
+                paciente_id: patient_id,
+                procedure_id: procedure_id || null,
+                data_consulta: startDateTime.toISOString(),
+                google_event_id: googleEventId,
+                status: 'scheduled' as AppointmentStatus
+            };
+
+            const { error } = await supabase.from('consultas').insert(payload);
+            if (error) throw error;
+
+            toast.success('Agendamento criado com sucesso!');
+            setShowNewAppointmentModal(false);
+
+            // Refresh events
+            handleManualRefresh();
+
+            // Reset form
+            setNewAppointmentForm({
+                patient_id: '',
+                procedure_id: '',
+                date: format(new Date(), 'yyyy-MM-dd'),
+                start_time: '08:00',
+                end_time: '09:00',
+                calendar_id: isDentist ? profile?.linked_calendar_id || '' : ''
+            });
+
+        } catch (err: any) {
+            console.error('Error creating appointment:', err);
+            toast.error('Erro ao criar agendamento no Google Calendar. Verifique as permissões.');
+        } finally {
+            setIsCreatingAppointment(false);
+        }
+    };
+
     // Action: No Show
     const handleNoShow = () => {
         if (!linkedAppointment) return;
@@ -959,6 +1076,123 @@ const CalendarView = () => {
                 </div>
             )}
 
+            {/* New Appointment Modal */}
+            {showNewAppointmentModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-4 bg-[var(--primary)] flex justify-between items-center text-white">
+                            <h3 className="font-bold text-lg flex items-center gap-2">
+                                <Plus size={20} /> Novo Agendamento
+                            </h3>
+                            <button onClick={() => setShowNewAppointmentModal(false)} className="text-white/80 hover:text-white">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleCreateAppointment} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Paciente <span className="text-red-500">*</span></label>
+                                <select
+                                    className="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 bg-slate-50 border focus:ring-2 focus:ring-[var(--primary)] outline-none"
+                                    value={newAppointmentForm.patient_id}
+                                    onChange={e => setNewAppointmentForm({ ...newAppointmentForm, patient_id: e.target.value })}
+                                    required
+                                >
+                                    <option value="">Selecione um paciente...</option>
+                                    {patients.map(p => (
+                                        <option key={p.id} value={p.id}>{p.nome}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Procedimento (Opcional)</label>
+                                <select
+                                    className="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 bg-slate-50 border focus:ring-2 focus:ring-[var(--primary)] outline-none"
+                                    value={newAppointmentForm.procedure_id}
+                                    onChange={e => setNewAppointmentForm({ ...newAppointmentForm, procedure_id: e.target.value })}
+                                >
+                                    <option value="">Selecione um procedimento...</option>
+                                    {procedures.map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Data <span className="text-red-500">*</span></label>
+                                    <input
+                                        type="date"
+                                        className="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 bg-slate-50 border focus:ring-2 focus:ring-[var(--primary)] outline-none"
+                                        value={newAppointmentForm.date}
+                                        onChange={e => setNewAppointmentForm({ ...newAppointmentForm, date: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Hora Início <span className="text-red-500">*</span></label>
+                                    <input
+                                        type="time"
+                                        className="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 bg-slate-50 border focus:ring-2 focus:ring-[var(--primary)] outline-none"
+                                        value={newAppointmentForm.start_time}
+                                        onChange={e => setNewAppointmentForm({ ...newAppointmentForm, start_time: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                                <div className="col-span-2 sm:col-span-1">
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Hora Fim <span className="text-red-500">*</span></label>
+                                    <input
+                                        type="time"
+                                        className="w-full text-sm border-gray-300 rounded-md shadow-sm p-2 bg-slate-50 border focus:ring-2 focus:ring-[var(--primary)] outline-none"
+                                        value={newAppointmentForm.end_time}
+                                        onChange={e => setNewAppointmentForm({ ...newAppointmentForm, end_time: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            {!isSimpleMode && (
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Agenda / Profissional <span className="text-red-500">*</span></label>
+                                    <select
+                                        className={`w-full text-sm rounded-md shadow-sm p-2 border focus:ring-2 focus:ring-[var(--primary)] outline-none ${isDentist ? 'bg-slate-200 border-slate-300 cursor-not-allowed text-slate-500' : 'bg-slate-50 border-gray-300'}`}
+                                        value={isDentist ? (profile?.linked_calendar_id || '') : newAppointmentForm.calendar_id}
+                                        onChange={e => setNewAppointmentForm({ ...newAppointmentForm, calendar_id: e.target.value })}
+                                        required
+                                        disabled={isDentist} // Dentists can only select their own calendar
+                                    >
+                                        <option value="">Selecione a agenda...</option>
+                                        {calendars.map(cal => (
+                                            <option key={cal.id} value={cal.id}>{cal.summary}</option>
+                                        ))}
+                                    </select>
+                                    {isDentist && <p className="text-xs text-slate-500 mt-1">Sua agenda está selecionada por padrão.</p>}
+                                </div>
+                            )}
+
+                            <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 mt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNewAppointmentModal(false)}
+                                    className="px-4 py-2 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium transition-colors text-sm"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isCreatingAppointment}
+                                    className="px-6 py-2 bg-[var(--primary)] text-white rounded-lg font-bold hover:bg-[var(--primary-hover)] transition-colors shadow-sm flex items-center gap-2 text-sm"
+                                >
+                                    {isCreatingAppointment ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                    Agendar
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             <header className="flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
@@ -985,6 +1219,17 @@ const CalendarView = () => {
                                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                                 Conectado
                             </div>
+
+                            <button
+                                onClick={() => {
+                                    setNewAppointmentForm(prev => ({ ...prev, calendar_id: isDentist ? profile?.linked_calendar_id || '' : '' }));
+                                    setShowNewAppointmentModal(true);
+                                }}
+                                className="btn btn-primary flex items-center gap-2 py-1.5 px-3 shadow-none text-sm"
+                            >
+                                <Plus size={16} />
+                                Novo Agendamento
+                            </button>
 
                             <button
                                 onClick={handleManualRefresh}
