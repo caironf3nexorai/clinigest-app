@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Search, Phone, Calendar, ArrowLeft, FileText, Activity, Pill, DollarSign, Clock, Stethoscope, Trash2, Edit, MessageCircle, Paperclip, Printer, User, X, Shield, History, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Phone, Calendar, ArrowLeft, FileText, Activity, Pill, DollarSign, Clock, Stethoscope, Trash2, Edit, MessageCircle, Paperclip, Printer, User, X, Shield, History, RotateCcw, AlertTriangle, UploadCloud } from 'lucide-react';
 import type { Paciente, Consulta, Anamnese } from '../types/db';
 import { format, parseISO, differenceInYears } from 'date-fns';
 import { PatientAttachments } from '../components/PatientAttachments';
@@ -11,6 +11,8 @@ import { PatientPrintView, printPatientRecord } from '../components/PatientPrint
 import { useToast } from '../components/Toast';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { MultiProcedureSelect } from '../components/MultiProcedureSelect';
+import { ImportPacientesModal } from '../components/ImportPacientesModal';
+import { deleteGoogleEvent } from '../lib/googleCalendar';
 
 export const Pacientes = () => {
     const { user, profile } = useAuth();
@@ -41,6 +43,7 @@ export const Pacientes = () => {
 
     // Patient Form State (Create & Edit)
     const [showNewPatientForm, setShowNewPatientForm] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
     const [isEditingPaciente, setIsEditingPaciente] = useState(false);
     const [editingPacienteId, setEditingPacienteId] = useState<string | null>(null);
     const [novoPaciente, setNovoPaciente] = useState({ nome: '', telefone: '', data_nascimento: '' });
@@ -475,6 +478,12 @@ export const Pacientes = () => {
                         </div>
                         <div className="flex gap-2">
                             <button
+                                onClick={() => setShowImportModal(true)}
+                                className="bg-white hover:bg-slate-50 text-slate-600 px-4 py-2 rounded-xl flex items-center gap-2 transition-all shadow-sm border border-slate-200 font-medium"
+                            >
+                                <UploadCloud size={18} /> Importar
+                            </button>
+                            <button
                                 onClick={() => setView('trash')}
                                 className="bg-white hover:bg-slate-50 text-slate-600 px-4 py-2 rounded-xl flex items-center gap-2 transition-all shadow-sm border border-slate-200 font-medium"
                             >
@@ -613,6 +622,14 @@ export const Pacientes = () => {
                         </div>
                     </div>
                 </div>
+                <ImportPacientesModal
+                    isOpen={showImportModal}
+                    onClose={() => setShowImportModal(false)}
+                    onSuccess={() => {
+                        setShowImportModal(false);
+                        fetchPacientes();
+                    }}
+                />
                 <ConfirmModal
                     isOpen={confirmModal.isOpen}
                     onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
